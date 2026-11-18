@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body.wp {
+    --bg: #ffffff; --card: #f2f3f6; --text: #15171c; --muted: #5b616d; --line: #d9dce3;
+    --accent: #2f7de1; --ok: #1f9d57; --warn: #b8570e; --err: #c2462a;
+  }
+  .homey-dark-mode body.wp, body.wp.homey-dark-mode {
+    --bg: #16181d; --card: #1e2128; --text: #f2f3f5; --muted: #9aa0ab; --line: #2c3039;
+    --accent: #6ea8ff; --ok: #4fd18b; --warn: #f0a050; --err: #e07a5f;
+  }
+  html, body { margin: 0; }
+  body.wp {
+    background: var(--bg); color: var(--text); box-sizing: border-box; padding: 14px 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; font-size: 14px;
+  }
+  .hide { display: none !important; }
+  form { display: flex; gap: 8px; }
+  input {
+    flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--card);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  button {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 14px;
+    background: var(--accent); color: #fff; cursor: pointer; white-space: nowrap;
+  }
+  button:disabled { opacity: .5; }
+  button.ghost { background: var(--card); color: var(--text); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.35; }
+  .err { color: var(--err); font-size: 13px; margin-top: 8px; }
+  .res { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .title { font-weight: 700; font-size: 16px; text-align: center; }
+  .qr { background: #fff; border-radius: 12px; padding: 8px; width: 190px; max-width: 70%; }
+  .qr svg { display: block; width: 100%; height: auto; }
+  .psk {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 17px; letter-spacing: .04em;
+    background: var(--card); border-radius: 10px; padding: 6px 12px; user-select: all;
+  }
+  .state { display: flex; align-items: center; gap: 8px; font-size: 13px; text-align: center; color: var(--muted); }
+  .state.ok { color: var(--ok); font-weight: 600; }
+  .state.warn { color: var(--warn); }
+  .spin {
+    width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent);
+    animation: r 1s linear infinite; flex: none;
+  }
+  @keyframes r { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body class="wp homey-widget">
+  <div id="start">
+    <form id="f">
+      <input id="name" maxlength="64" placeholder="Naam van het apparaat" autocomplete="off" required>
+      <button id="go">Aanmelden</button>
+    </form>
+    <div id="err" class="err hide"></div>
+    <div id="hint" class="hint">Maakt een eigen wifi-sleutel. Koppel het apparaat daarna in de portal (Sleutels); tot dan vervalt de sleutel vanzelf na een paar uur.</div>
+  </div>
+
+  <div id="result" class="res hide">
+    <div class="title" id="rname"></div>
+    <div class="qr" id="qr"></div>
+    <div class="psk" id="psk"></div>
+    <div class="hint" id="rhint" style="text-align:center;margin:0"></div>
+    <div class="state" id="state"><span class="spin"></span><span>Wacht op het apparaat…</span></div>
+    <button class="ghost" id="again">Nog een apparaat</button>
+  </div>
+
+<script>
+function onHomeyReady(Homey) {
+  const $ = (id) => document.getElementById(id);
+  const s = Homey.getSettings() || {};
+  const conn = { url: s.url, token: s.token };
+  let timer = null;
+  let polls = 0;
+
+  const fit = () => Homey.setHeight(document.body.scrollHeight).catch(() => {});
+  const showErr = (msg) => { $('err').textContent = msg; $('err').classList.remove('hide'); fit(); };
+
+  if (!s.token) {
+    $('hint').textContent = 'Vul eerst het API-token in bij de instellingen van deze widget (te vinden in de portal onder Instellingen).';
+    $('go').disabled = true;
+  }
+
+  $('f').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const name = $('name').value.trim();
+    if (!name) return;
+    Homey.hapticFeedback();
+    $('go').disabled = true; $('go').textContent = 'Bezig…';
+    $('err').classList.add('hide');
+    try {
+      const r = await Homey.api('POST', '/create', { ...conn, ssid: s.ssid || 'Lofoten', name });
+      $('rname').textContent = r.label || r.name;
+      $('qr').innerHTML = r.qr.replace(/^<\?xml[^>]*>\s*/, '');
+      $('psk').textContent = r.psk;
+      $('rhint').textContent = `Scan met de camera om te verbinden met ${r.ssid}. Het apparaat komt eerst in ${r.vlan}. `
+        + `Kies het daarna in de portal onder Sleutels om de sleutel eraan te koppelen`
+        + (r.hours > 0 ? `; anders vervalt hij na ${r.hours} uur.` : '.');
+      setState('wait', 'Wacht op koppeling in de portal…');
+      $('start').classList.add('hide'); $('result').classList.remove('hide');
+      fit();
+      polls = 0;
+      poll(r.name);
+    } catch (e) {
+      showErr(e.message || String(e));
+    } finally {
+      $('go').disabled = !s.token; $('go').textContent = 'Aanmelden';
+    }
+  });
+
+  function setState(kind, text) {
+    const el = $('state');
+    el.className = 'state' + (kind === 'ok' ? ' ok' : kind === 'warn' ? ' warn' : '');
+    el.innerHTML = (kind === 'wait' ? '<span class="spin"></span>' : '') + '<span></span>';
+    el.lastChild.textContent = text;
+    fit();
+  }
+
+  function poll(name) {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      polls += 1;
+      try {
+        const k = await Homey.api('POST', '/status', { ...conn, name });
+        if (!k.exists) return setState('warn', 'Deze sleutel bestaat niet meer (verlopen of geannuleerd).');
+        if (k.mac) {
+          let t = `✓ Gekoppeld aan ${k.host || 'het apparaat'} (${k.mac})`;
+          setState('ok', t);
+          if (k.random) {
+            $('rhint').textContent = 'Let op: dit apparaat gebruikt een privé-MAC; de sleutel verloopt daarom na een paar uur. Zet het privé-adres uit en meld het opnieuw aan.';
+            fit();
+          } else {
+            $('rhint').textContent = 'Kies in de portal het juiste VLAN voor dit apparaat.';
+          }
+          return;
+        }
+      } catch (e) { /* tijdelijk niet bereikbaar: blijf proberen */ }
+      if (polls < 450) poll(name);        // ±30 minuten
+      else setState('warn', 'Nog niet gekoppeld. Dat kan later nog in de portal onder Sleutels.');
+    }, 4000);
+  }
+
+  $('again').addEventListener('click', () => {
+    clearTimeout(timer);
+    $('name').value = '';
+    $('result').classList.add('hide'); $('start').classList.remove('hide');
+    fit();
+  });
+
+  Homey.ready();
+}
+</script>
+</body>
+</html>

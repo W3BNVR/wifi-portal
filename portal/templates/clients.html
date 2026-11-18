@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% macro row(r) %}
+  <div class="row crow" data-on="{{ 1 if r.active else 0 }}"
+       data-s="{{ (r.name ~ ' ' ~ r.mac ~ ' ' ~ (r.ip or '') ~ ' ' ~ r.vlan_name ~ ' ' ~ r.conn ~ ' ' ~ r.desc ~ ' ' ~ (r.hostName or ''))|lower }}">
+    <div class="dev">
+      <span class="ico">{{ r.icon }}</span>
+      <div style="min-width:0;flex:1">
+        <div><span class="dot {{ 'on' if r.active }}"></span>
+          <a href="{{ url_for('client', mac=r.mac) }}"><strong>{{ r.name or r.hostName or 'Naamloos' }}</strong></a>
+          {% if r.key %}<span class="tag ok">eigen sleutel</span>{% endif %}
+          {% if r.only_db %}<span class="tag" title="Omada kent dit apparaat niet meer; de portal onthoudt het">alleen in portal</span>{% endif %}
+          {% if r.random %}<span class="tag warn" title="Willekeurig MAC-adres (privacy-functie van het apparaat)">privé-MAC</span>{% endif %}</div>
+        <div class="muted">{{ r.desc or 'Onbekend type' }}</div>
+        <div class="muted"><span class="mac">{{ r.mac }}</span> · {{ r.ip or '—' }}{{ ' · ' ~ r.conn if r.conn }}{{ ' · laatst ' ~ (r.lastSeen|ago) if not r.active and r.lastSeen }}</div>
+      </div>
+      <form method="post" action="{{ url_for('client_vlan') }}" class="vl"
+            data-mode="{{ r.mode }}" data-name="{{ r.name or r.mac }}" data-cur="{{ r.vlan or '' }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mac" value="{{ r.mac }}">
+        <input type="hidden" name="back" value="{{ url_for('all_clients') }}">
+        <select name="vlan" {{ 'disabled' if not r.mode }} title="{{ r.why }}" onchange="askVlan(this)">
+          {% if not r.vlan %}<option value="">—</option>{% endif %}
+          {% for n in nets %}<option value="{{ n.vlan }}" {{ 'selected' if n.vlan == r.vlan }}>{{ n.name }}</option>{% endfor %}
+        </select>
+        {% if not r.mode and r.why %}<div class="muted small">{{ r.why }}</div>{% endif %}
+      </form>
+    </div>
+  </div>
+{% endmacro %}
+{% block body %}
+<header>
+  <h1>Alle apparaten</h1>
+  <nav><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('setup') }}">Instellingen</a></nav>
+</header>
+<div class="inline" style="margin-bottom:12px">
+  <input type="text" id="q" placeholder="Zoek op naam, type, MAC, IP, VLAN…" oninput="filt()" autofocus>
+  <label class="muted"><input type="checkbox" id="on" onchange="filt()" checked> alleen online</label>
+</div>
+<p class="muted">{{ total }} bekend · {{ online }} online</p>
+
+<section class="card">
+  <h2>📶 Draadloos <span class="muted cnt"></span>
+    <span class="muted small" style="float:right"><a href="#" onclick="openAll(true, 'w');return false">alles open</a> ·
+      <a href="#" onclick="openAll(false, 'w');return false">alles dicht</a></span></h2>
+  {% for grp in wireless|groupby('vlan_sort') %}
+  <details class="vgrp" data-g="w{{ grp.grouper }}" open ontoggle="saveOpen()">
+    <summary><strong>{{ grp.list[0].vlan_name or 'Onbekend VLAN' }}</strong>{% if grp.grouper != 9999 %} <span class="muted">VLAN {{ grp.grouper }}</span>{% endif %}
+      <span class="muted gcnt"></span></summary>
+    {% for r in grp.list %}{{ row(r) }}{% endfor %}
+  </details>
+  {% else %}<p class="muted">Geen.</p>{% endfor %}
+</section>
+<section class="card">
+  <h2>🔌 Bekabeld <span class="muted cnt"></span>
+    <span class="muted small" style="float:right"><a href="#" onclick="openAll(true, 'b');return false">alles open</a> ·
+      <a href="#" onclick="openAll(false, 'b');return false">alles dicht</a></span></h2>
+  {% for grp in wired|groupby('vlan_sort') %}
+  <details class="vgrp" data-g="b{{ grp.grouper }}" open ontoggle="saveOpen()">
+    <summary><strong>{{ grp.list[0].vlan_name or 'Onbekend VLAN' }}</strong>{% if grp.grouper != 9999 %} <span class="muted">VLAN {{ grp.grouper }}</span>{% endif %}
+      <span class="muted gcnt"></span></summary>
+    {% for r in grp.list %}{{ row(r) }}{% endfor %}
+  </details>
+  {% else %}<p class="muted">Geen.</p>{% endfor %}
+</section>
+
+<script>
+function filt(){
+  const q=document.getElementById('q').value.toLowerCase().trim(), on=document.getElementById('on').checked;
+  document.querySelectorAll('section.card').forEach(sec=>{
+    let n=0;
+    sec.querySelectorAll('.crow').forEach(r=>{
+      const show=(!q || r.dataset.s.includes(q)) && (!on || r.dataset.on==='1');
+      r.style.display=show?'':'none'; if(show) n++;
+    });
+    const c=sec.querySelector('.cnt'); if(c) c.textContent='· '+n;
+  });
+  document.querySelectorAll('details.vgrp').forEach(d=>{
+    const n=[...d.querySelectorAll('.crow')].filter(r=>r.style.display!=='none').length;
+    d.querySelector('.gcnt').textContent='· '+n;
+    d.style.display=n?'':'none';
+    if(q && n) d.open=true;  // bij zoeken: groepen met treffers openklappen
+  });
+}
+function saveOpen(){
+  if(document.getElementById('q').value) return;
+  const closed=[...document.querySelectorAll('details.vgrp')].filter(d=>!d.open).map(d=>d.dataset.g);
+  try{ localStorage.setItem('wp-closed', JSON.stringify(closed)); }catch(e){}
+}
+function openAll(v, p){ document.querySelectorAll('details.vgrp').forEach(d=>{ if(!p || d.dataset.g[0]===p) d.open=v; }); saveOpen(); }
+try{
+  const closed=JSON.parse(localStorage.getItem('wp-closed')||'[]');
+  document.querySelectorAll('details.vgrp').forEach(d=>{ if(closed.includes(d.dataset.g)) d.open=false; });
+}catch(e){}
+function askVlan(sel){
+  const f=sel.form, m=f.dataset.mode, t=sel.options[sel.selectedIndex].text, nm=f.dataset.name;
+  const msg = m==='port'
+    ? `De hele switchpoort van "${nm}" naar ${t} zetten? Het apparaat krijgt daarna een IP in dat netwerk.`
+    : m==='ownkey'
+    ? `"${nm}" gebruikt een gedeelde sleutel. Er wordt een eigen sleutel in ${t} gemaakt, die je daarna op het apparaat moet invoeren. Doorgaan?`
+    : `"${nm}" naar ${t} verplaatsen? Het apparaat verbindt kort opnieuw.`;
+  if(confirm(msg)) f.submit(); else sel.value=f.dataset.cur;
+}
+filt();
+</script>
+{% endblock %}

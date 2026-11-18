@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block body %}
+<header>
+  <h1>Gedeelde sleutel “{{ e.name }}”</h1>
+  <nav><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('all_clients') }}">Alle apparaten</a></nav>
+</header>
+
+<section class="card">
+  <p><strong>{{ e.name }}</strong> · {{ vlan_name }} · profiel {{ prof_name }}</p>
+  <p class="muted">Gedeelde sleutels worden door de portal nooit gewijzigd of verwijderd. Geef een apparaat hieronder een eigen
+    privé-sleutel: die komt in hetzelfde VLAN, is alleen aan dat apparaat gebonden, en je voert hem daarna op het apparaat in.
+    De gedeelde sleutel blijft voor alle andere apparaten gewoon werken.</p>
+  {% if others %}<p class="muted">Let op: ook {{ others|join(', ') }} {{ 'is een gedeelde sleutel' if others|length == 1 else 'zijn gedeelde sleutels' }} in {{ vlan_name }}.
+    Omada laat niet zien welke sleutel een apparaat precies gebruikt, dus de lijst kan ook apparaten met die sleutel bevatten.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Apparaten die deze sleutel nu gebruiken <span class="muted">· {{ users|length }}</span></h2>
+  {% for c in users %}
+  <div class="row">
+    <div class="dev">
+      <div style="flex:1;min-width:0">
+        <a href="{{ url_for('client', mac=c.mac) }}"><strong>{{ c.name or c.hostName or 'Naamloos' }}</strong></a> <span class="mac">{{ c.mac }}</span>
+        {% if c.random %}<span class="tag warn" title="Een eigen sleutel verloopt dan na {{ hours|round(1) }} uur">privé-MAC</span>{% endif %}
+        <div class="muted">{{ c.ip or '—' }} · {{ c.ssid }}{{ ' · ' ~ c.apName if c.apName }}</div>
+      </div>
+      <form method="post" action="{{ url_for('own_key') }}" class="inline"
+            onsubmit="return confirm('Eigen privé-sleutel maken voor {{ (c.name or c.hostName or c.mac)|e }}?\n\nDaarna voer je de nieuwe sleutel op het apparaat in.{{ ' Privé-MAC: de sleutel verloopt na ' ~ (hours|round(1)) ~ ' uur.' if c.random }}')">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mac" value="{{ c.mac }}">
+        <input type="hidden" name="back" value="{{ url_for('shared', name=e.name) }}">
+        <button>Nieuwe privé-sleutel</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <p class="muted">Er is nu geen apparaat online met deze sleutel.</p>
+  {% endfor %}
+  <p class="muted">Alleen apparaten die nu verbonden zijn staan in de lijst.</p>
+</section>
+{% endblock %}

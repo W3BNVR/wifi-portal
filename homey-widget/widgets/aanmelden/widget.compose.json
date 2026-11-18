@@ -1,0 +1,28 @@
+{
+  "name": { "en": "Add wifi device", "nl": "Wifi-apparaat aanmelden" },
+  "height": 132,
+  "settings": [
+    {
+      "id": "url",
+      "type": "text",
+      "title": { "en": "Portal address", "nl": "Adres van de portal" },
+      "value": "http://10.0.0.2:8098"
+    },
+    {
+      "id": "token",
+      "type": "text",
+      "title": { "en": "API token (portal → Settings)", "nl": "API-token (portal → Instellingen)" },
+      "value": ""
+    },
+    {
+      "id": "ssid",
+      "type": "text",
+      "title": { "en": "Network for the QR code", "nl": "Netwerk voor de QR-code" },
+      "value": "Lofoten"
+    }
+  ],
+  "api": {
+    "create": { "method": "POST", "path": "/create" },
+    "status": { "method": "POST", "path": "/status" }
+  }
+}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block body %}
+<header>
+  <h1>Logboek</h1>
+  <nav><a href="{{ url_for('all_clients') }}">Alle apparaten</a><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('export') }}">Export</a></nav>
+</header>
+<div class="inline" style="margin-bottom:12px">
+  <input type="text" id="q" placeholder="Zoek op apparaat, MAC of tekst…" oninput="filt()">
+  <select id="k" onchange="filt()">
+    <option value="">Alles</option>
+    <option value="portal">Acties in de portal</option>
+    <option value="omada">Gezien in Omada (nieuw, IP, VLAN, naam)</option>
+    <option value="hersteld">Hersteld</option>
+    <option value="fout">Fouten</option>
+  </select>
+</div>
+<p class="muted">De portal onthoudt {{ total }} apparaten en controleert elke 5 minuten wat Omada weet. Namen en type/merk/model die Omada kwijtraakt, zet de portal automatisch terug.</p>
+<section class="card">
+  {% for e in events %}
+  <div class="row ev" data-k="{{ e.kind }} {{ e.source }}" data-s="{{ (e.who ~ ' ' ~ (e.mac or '') ~ ' ' ~ e.detail)|lower }}">
+    <div><span class="muted">{{ (e.ts * 1000)|ago }}</span> ·
+      {% if e.mac %}<a href="{{ url_for('client', mac=e.mac) }}"><strong>{{ e.who }}</strong></a> · {% endif %}{{ e.detail }}
+      {% if e.kind == 'fout' %}<span class="tag warn">fout</span>{% elif e.kind == 'hersteld' %}<span class="tag ok">hersteld</span>{% elif e.source == 'omada' %}<span class="tag">gezien</span>{% endif %}</div>
+  </div>
+  {% else %}<p class="muted">Nog niets vastgelegd.</p>{% endfor %}
+</section>
+<script>
+function filt(){
+  const q=document.getElementById('q').value.toLowerCase().trim(), k=document.getElementById('k').value;
+  document.querySelectorAll('.ev').forEach(r=>{
+    r.style.display=(!q || r.dataset.s.includes(q)) && (!k || r.dataset.k.split(' ').includes(k)) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

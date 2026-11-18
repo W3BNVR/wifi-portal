@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block body %}
+<header><h1>Instellingen</h1><nav><a href="{{ url_for('index') }}">Terug</a></nav></header>
+<section class="card">
+  <form method="post" style="display:grid;gap:12px">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Site<br>
+      <select name="site" onchange="this.form.submit()">
+        {% for s in sites %}<option value="{{ s.id }}" {{ 'selected' if s.id == sid }}>{{ s.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>PPSK-profiel<br>
+      <select name="profile" required>
+        {% for p in profiles %}<option value="{{ p.id }}" {{ 'selected' if p.id == guess_profile }}>{{ p.name }} ({{ p.ssids|join(', ') or 'aan geen SSID gekoppeld' }})</option>{% endfor %}
+      </select>
+      {% if not profiles %}<span class="muted">Geen PPSK-profielen gevonden in deze site.</span>{% endif %}
+    </label>
+    <label>Gast-VLAN voor nieuwe sleutels (tot het MAC-adres bekend is)<br>
+      <select name="guest_vlan" required>
+        {% for n in nets %}<option value="{{ n.vlan }}" {{ 'selected' if n.vlan == guess_vlan }}>{{ n.name }} (VLAN {{ n.vlan }}, {{ n.subnet }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Sleutels van apparaten met een privé-MAC verwijderen na (uur)<br>
+      <input type="number" name="random_key_hours" min="0" step="0.5" value="{{ '%g' % rk_hours }}" style="width:120px">
+      <span class="muted">0 = nooit. Zulke apparaten krijgen ook nooit een vast IP.</span>
+    </label>
+    <label>Wachtende sleutels (nog niet gekoppeld) verwijderen na (uur)<br>
+      <input type="number" name="pending_key_hours" min="0" step="0.5" value="{{ '%g' % pk_hours }}" style="width:120px">
+      <span class="muted">0 = nooit.</span>
+    </label>
+    <div><button name="save" value="1">Opslaan</button></div>
+  </form>
+</section>
+<section class="card">
+  <h2>API-token voor de Homey-widget</h2>
+  <form method="post" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="text" readonly value="{{ token }}" style="flex:1;font-family:monospace" onclick="this.select()">
+    <button name="newtoken" value="1" class="ghost" onclick="return confirm('Nieuw token maken? Het oude werkt dan niet meer.')">Nieuw token</button>
+  </form>
+  <p class="muted">Vul dit token en het adres van de portal in bij de instellingen van de widget.</p>
+</section>
+{% endblock %}

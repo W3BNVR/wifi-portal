@@ -1,0 +1,10 @@
+services:
+  wifi-portal:
+    build: ./portal
+    container_name: wifi-portal
+    restart: unless-stopped
+    ports:
+      - "8098:8080"
+    env_file: .env
+    volumes:
+      - ./data:/data          # config.json, state.json, portal.db, secret.key

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block body %}
+<header><h1>{{ e.name }}</h1><nav><a href="{{ url_for('index') }}">Overzicht</a></nav></header>
+<section class="card">
+  {% if e.mac %}
+  <div class="flash ok" style="text-align:center">Gekoppeld aan <span class="mac">{{ e.mac }}</span> — deze sleutel werkt alleen nog op dat apparaat.</div>
+  {% if random %}<div class="flash" style="text-align:center">Dit apparaat gebruikt een <strong>privé-MAC</strong>. De sleutel wordt daarom
+    {% if expires %}automatisch verwijderd op <strong>{{ (expires * 1000)|ago }}</strong>{% elif hours > 0 %}na {{ '%g' % hours }} uur automatisch verwijderd{% endif %}.
+    Wil je hem permanent, zet dan op het apparaat het privé-adres uit en maak een nieuwe sleutel.</div>{% endif %}
+  <form method="post" action="{{ url_for('move') }}" class="inline" style="justify-content:center;margin-bottom:12px">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="name" value="{{ e.name }}">
+    <span>VLAN:</span>
+    <select name="vlan" onchange="this.form.submit()">
+      {% for n in nets %}<option value="{{ n.vlan }}" {{ 'selected' if n.vlan == (e.vlan or 1) }}>{{ n.name }} (VLAN {{ n.vlan }})</option>{% endfor %}
+    </select>
+  </form>
+  {% else %}
+  <p class="muted" style="text-align:center">Scan de QR-code of typ de sleutel over. Het apparaat komt eerst in <strong>{{ vlan_name }}</strong>.</p>
+  {% if waiting %}<div class="flash" id="wait" style="text-align:center">⏳ Verbind het apparaat en kies het daarna op <a href="{{ url_for('index') }}">Sleutels</a>
+    om de sleutel eraan te koppelen. Tot dan kan elk apparaat hem gebruiken{% if pending_expires %}; hij vervalt op <strong>{{ (pending_expires * 1000)|ago }}</strong>{% endif %}.</div>{% endif %}
+  {% endif %}
+  <div class="qrs">
+    {% for q in qrs %}<div class="qr">{{ q.svg }}<div><strong>{{ q.ssid }}</strong></div></div>{% endfor %}
+  </div>
+  <p class="muted" style="text-align:center;margin-bottom:4px">Sleutel</p>
+  <div class="psk" id="psk">{{ e.psk }}</div>
+  <p style="text-align:center"><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('psk').textContent).then(()=>this.textContent='Gekopieerd')">Kopieer sleutel</button></p>
+  <p class="muted" style="text-align:center">Telefoon? Zet “privé-adres / willekeurig MAC” uit voor dit netwerk.
+    Alleen 2,4 GHz (veel IoT)? Kies dan de IoT-SSID.</p>
+</section>
+{% if waiting %}
+<script>
+(function poll(){
+  fetch("{{ url_for('key_status', name=e.name) }}").then(r=>r.json()).then(j=>{
+    if(j.mac){ location.reload(); } else { setTimeout(poll, 4000); }
+  }).catch(()=>setTimeout(poll, 8000));
+})();
+</script>
+{% endif %}
+{% endblock %}

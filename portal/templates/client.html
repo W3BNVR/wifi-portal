@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block body %}
+<header>
+  <h1><span class="ico big">{{ icon }}</span> {{ info.name or info.hostName or mac }}</h1>
+  <nav><a href="{{ url_for('all_clients') }}">Alle apparaten</a><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('index') }}">Sleutels</a></nav>
+</header>
+
+<section class="card">
+  <div><span class="dot {{ 'on' if info.active }}"></span> {{ 'Online' if info.active else 'Offline' }}
+    · {{ desc or 'Onbekend type' }}
+    {% if random %}<span class="tag warn" title="Willekeurig MAC-adres (privacy-functie van het apparaat)">privé-MAC</span>{% endif %}</div>
+  <dl class="grid">
+    <dt>MAC</dt><dd class="mac">{{ mac }}</dd>
+    <dt>IP</dt><dd>{{ info.ip or '—' }}{% if ips.useFixedAddr %} <span class="tag {{ 'warn' if fixed_wrong else 'ok' }}">vast{{ ': ' ~ ips.ip if ips.ip != info.ip }}</span>{% endif %}
+      {% if fixed_wrong %}<div class="muted">Het vaste IP {{ ips.ip }} valt niet in {{ vlan_name }}; zet het hieronder uit of kies een nieuw adres.</div>{% endif %}</dd>
+    {% if info.ipv6List %}<dt>IPv6</dt><dd class="mac">{{ info.ipv6List|join(', ') }}</dd>{% endif %}
+    <dt>Netwerk</dt><dd>{{ vlan_name or '—' }}{{ ' (VLAN ' ~ vlan ~ ')' if vlan }}</dd>
+    {% if info.hostName %}<dt>Hostname</dt><dd>{{ info.hostName }}</dd>{% endif %}
+    <dt>Omada herkent</dt><dd>{{ [info.deviceCategory, info.deviceType, info.vendor, info.osName, info.model]|reject('none')|reject('in', ['Unknown','unknown','Others'])|join(' · ') or '—' }}</dd>
+    {% if info.wireless %}
+      <dt>Wifi</dt><dd>{{ info.ssid or '—' }}{{ ' · ' ~ info.apName if info.apName }}</dd>
+      {% if info.active %}<dt>Signaal</dt><dd>{{ info.rssi }} dBm · {{ info.signalLevel }}% · kanaal {{ info.channel }}{{ ' · 5/6 GHz' if (info.channel or 0) > 14 else ' · 2,4 GHz' }}</dd>
+      <dt>Snelheid</dt><dd>↓ {{ ((info.rxRate or 0) / 1000)|round|int }} / ↑ {{ ((info.txRate or 0) / 1000)|round|int }} Mbps</dd>{% endif %}
+    {% else %}
+      <dt>Aansluiting</dt><dd>{{ conn or '—' }}</dd>
+    {% endif %}
+    {% if info.active %}<dt>Online sinds</dt><dd>{{ info.uptime|dur }}</dd>
+    <dt>Verkeer</dt><dd>↓ {{ info.trafficDown|bytes }} · ↑ {{ info.trafficUp|bytes }}</dd>{% endif %}
+    <dt>Laatst gezien</dt><dd>{{ info.lastSeen|ago }}</dd>
+    {% if mem.first_seen %}<dt>Eerst gezien</dt><dd>{{ (mem.first_seen * 1000)|ago }}</dd>{% endif %}
+    {% if key %}<dt>Sleutel</dt><dd>eigen sleutel “{{ key.name }}” · <a href="{{ url_for('key', name=key.name) }}">QR / sleutel</a>
+      {% if expires %}<span class="tag warn" title="Privé-MAC: sleutel wordt automatisch verwijderd">verloopt {{ (expires * 1000)|ago }}</span>{% endif %}
+      <form method="post" action="{{ url_for('delete') }}" style="display:inline"
+            onsubmit="return confirm('Sleutel “{{ key.name }}” verwijderen? Dit apparaat verliest dan de wifi-verbinding.')">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="name" value="{{ key.name }}">
+        <input type="hidden" name="back" value="{{ url_for('client', mac=mac) }}">
+        <button class="ghost" style="padding:2px 10px;font-size:13px;margin-left:6px">Sleutel verwijderen</button>
+      </form></dd>{% elif on_shared %}<dt>Sleutel</dt><dd>gedeelde sleutel{% if shared_keys|length == 1 %}
+      “<a href="{{ url_for('shared', name=shared_keys[0]) }}">{{ shared_keys[0] }}</a>”{% endif %}
+      <form method="post" action="{{ url_for('own_key') }}" style="display:inline"
+            onsubmit="return confirm('Eigen privé-sleutel maken voor dit apparaat (zelfde VLAN)? Daarna voer je de nieuwe sleutel op het apparaat in.{{ ' Privé-MAC: de sleutel verloopt na ' ~ (hours|round(1)) ~ ' uur.' if random }}')">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mac" value="{{ mac }}">
+        <button style="padding:2px 10px;font-size:13px;margin-left:6px">Nieuwe privé-sleutel</button>
+      </form></dd>{% endif %}
+  </dl>
+</section>
+
+<section class="card">
+  <h2>Naam <span class="muted">· wordt in Omada opgeslagen</span></h2>
+  <form method="post" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="rename">
+    <input type="text" name="name" value="{{ info.name }}" maxlength="64" required>
+    <button>Opslaan</button>
+  </form>
+  <div class="split">
+    <div>
+      <h2>IP-adres</h2>
+  <form method="post" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="fixedip">
+        <label><input type="checkbox" name="fixed" value="1" {{ 'checked' if ips.useFixedAddr }}
+          {{ 'disabled' if random and not ips.useFixedAddr }}
+          onchange="document.getElementById('ip').disabled=!this.checked"> Vast IP</label>
+        <input type="text" id="ip" name="ip" value="{{ ips.ip if ips.useFixedAddr and not fixed_wrong else (info.ip or '') }}" placeholder="bv. 10.0.50.20"
+          {{ '' if ips.useFixedAddr else 'disabled' }}>
+        <button {{ 'disabled' if (net and not net.dhcp or random) and not ips.useFixedAddr }}>Opslaan</button>
+      </form>
+      {% if random %}<p class="muted"><strong>Privé-MAC:</strong> dit apparaat gebruikt een willekeurig MAC-adres en krijgt daarom nooit een vast IP{% if ips.useFixedAddr %}; het bestaande vaste IP kun je hier uitzetten{% endif %}.</p>{% endif %}
+      {% if net and not net.dhcp %}<p class="muted"><strong>{{ net.name }} heeft geen DHCP-server in Omada</strong>: de adressen in dit netwerk komen van een andere DHCP-server. Een vast IP stel je dan daar in{% if ips.useFixedAddr %}; het oude vaste IP kun je hier nog wel uitzetten{% endif %}.</p>{% endif %}
+      <p class="muted">{% if net %}Netwerk: {{ net.name }} ({{ net.subnet }}).{% else %}Netwerk onbekend; verbind het apparaat eerst.{% endif %}
+        Een nieuw vast IP gaat in bij de volgende DHCP-vernieuwing of herverbinding.</p>
+    </div>
+    <div>
+      <h2>VLAN</h2>
+  <form method="post" action="{{ url_for('client_vlan') }}" class="inline vl" data-mode="{{ mode }}"
+            data-name="{{ info.name or mac }}" data-cur="{{ vlan or '' }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mac" value="{{ mac }}">
+        <input type="hidden" name="back" value="{{ url_for('client', mac=mac) }}">
+        <select name="vlan" {{ 'disabled' if not mode }} onchange="askVlan(this)">
+          {% if not vlan %}<option value="">—</option>{% endif %}
+          {% for n in nets %}<option value="{{ n.vlan }}" {{ 'selected' if n.vlan == vlan }}>{{ n.name }} (VLAN {{ n.vlan }})</option>{% endfor %}
+        </select>
+      </form>
+      <p class="muted">{% if mode == 'key' %}Via de eigen sleutel; het apparaat verbindt kort opnieuw.
+        {% elif mode == 'ownkey' %}Gebruikt een gedeelde sleutel: bij wijzigen krijgt het een eigen sleutel in het gekozen VLAN, die je op het apparaat invoert.
+        {% elif mode == 'port' %}Wijzigt switchpoort {{ info.port }} van {{ info.switchName }} (alleen dit apparaat zit erop).
+        {% else %}{{ why }}{% endif %}</p>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Type, merk, model en icoon</h2>
+  <form method="post" style="display:grid;gap:10px">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="details">
+    <div class="inline">
+      <label style="flex:1">Type<br><input type="text" name="type" list="types" value="{{ ov.type or (info.deviceType if info.deviceType not in ['Unknown','unknown', None] else '') }}" placeholder="Kies of typ…"></label>
+      <label style="flex:1">Merk<br><input type="text" name="vendor" list="vendors" value="{{ ov.vendor or (info.vendor if info.vendor not in ['Unknown', None] else '') }}" placeholder="Kies of typ…"></label>
+      <label style="flex:1">Model<br><input type="text" name="model" value="{{ ov.model or (info.model if info.model not in ['Unknown', None] else '') }}"></label>
+    </div>
+    <div>Icoon<div class="icons">
+      <label title="Automatisch"><input type="radio" name="icon" value="" {{ 'checked' if not ov.icon }}><span>Auto</span></label>
+      {% for nm, ic in icons.items() %}<label title="{{ nm }}"><input type="radio" name="icon" value="{{ ic }}" {{ 'checked' if ov.icon == ic }}><span>{{ ic }}</span></label>{% endfor %}
+    </div></div>
+    <label>Notitie<br><textarea name="note" rows="2" style="width:100%">{{ ov.note or '' }}</textarea></label>
+    <div><button>Opslaan</button></div>
+  </form>
+  <p class="muted">{% if web %}Type, merk en model worden in Omada opgeslagen (kies type en merk uit de suggesties). Alles leeg = Omada's eigen herkenning. Icoon en notitie bewaart de portal zelf.{% else %}Deze gegevens bewaart de portal zelf. Zet OMADA_WEB_USER/OMADA_WEB_PASS in de config om type/merk/model ook in Omada op te slaan.{% endif %}</p>
+  <datalist id="types">{% for t in types %}<option value="{{ t }}">{% endfor %}</datalist>
+  <datalist id="vendors">{% for v in vendors %}<option value="{{ v }}">{% endfor %}</datalist>
+</section>
+
+<section class="card">
+  <h2>Geschiedenis</h2>
+  {% for e in history %}
+  <div class="row"><div><span class="muted">{{ (e.ts * 1000)|ago }}</span> · {{ e.detail }}
+    {% if e.kind == 'fout' %}<span class="tag warn">fout</span>{% elif e.source == 'omada' %}<span class="tag">gezien</span>{% endif %}</div></div>
+  {% else %}<p class="muted">Nog niets vastgelegd.</p>{% endfor %}
+</section>
+
+<script>
+function askVlan(sel){
+  const f=sel.form, m=f.dataset.mode, t=sel.options[sel.selectedIndex].text, nm=f.dataset.name;
+  const msg = m==='port'
+    ? `De hele switchpoort van "${nm}" naar ${t} zetten? Het apparaat krijgt daarna een IP in dat netwerk.`
+    : m==='ownkey'
+    ? `"${nm}" gebruikt een gedeelde sleutel. Er wordt een eigen sleutel in ${t} gemaakt, die je daarna op het apparaat moet invoeren. Doorgaan?`
+    : `"${nm}" naar ${t} verplaatsen? Het apparaat verbindt kort opnieuw.`;
+  if(confirm(msg)) f.submit(); else sel.value=f.dataset.cur;
+}
+</script>
+{% endblock %}

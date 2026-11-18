@@ -1,0 +1,23 @@
+# Runtime-data en geheimen: nooit in git
+data/
+*.db
+secret.key
+config.json
+state.json
+overrides.json
+.env
+*.env
+!.env.example
+
+# Python / build
+__pycache__/
+*.pyc
+_*.py
+_run.sh
+
+# Homey
+homey-widget/app.json
+homey-widget/.homeybuild/
+homey-widget/node_modules/
+homey-widget/env.json
+*.log
