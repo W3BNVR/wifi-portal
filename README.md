@@ -20,9 +20,18 @@ PPSK-profielen) komt uit Omada zelf; niets handmatig configureren.
 
 ## Installeren (Docker)
 
+Je hebt alleen `docker-compose.yml` en een `.env` nodig; het image wordt rechtstreeks uit deze
+GitHub-repo gebouwd (`build.context: https://github.com/W3BNVR/wifi-portal.git#main:portal`).
+
 ```sh
 cp .env.example .env      # invullen: Omada-URL, Open API client-id/secret, portalwachtwoord
 docker compose up -d --build
+```
+
+Bijwerken naar de nieuwste versie uit GitHub:
+
+```sh
+docker compose build --pull --no-cache && docker compose up -d
 ```
 
 Open daarna `http://<host>:8098`, log in en kies onder **Instellingen** de site, het PPSK-profiel
