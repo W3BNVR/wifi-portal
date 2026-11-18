@@ -1,14 +1,14 @@
 services:
   wifi-portal:
-    # Bouwt het image rechtstreeks uit GitHub (map portal/ van branch main).
-    # Bijwerken naar de nieuwste versie: docker compose build --pull --no-cache && docker compose up -d
-    build:
-      context: https://github.com/W3BNVR/wifi-portal.git#main:portal
-    image: wifi-portal:latest
+    # Kant-en-klaar image, automatisch gebouwd uit deze repo (amd64 + arm64).
+    image: ghcr.io/w3bnvr/wifi-portal:latest
+    # Liever zelf bouwen uit de broncode op GitHub? Vervang de regel hierboven door:
+    #   build:
+    #     context: https://github.com/W3BNVR/wifi-portal.git#main:portal
     container_name: wifi-portal
     restart: unless-stopped
     ports:
       - "8098:8080"
-    env_file: .env
+    env_file: .env            # zie .env.example
     volumes:
       - ./data:/data          # config.json, state.json, portal.db, secret.key

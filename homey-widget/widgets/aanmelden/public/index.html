@@ -81,8 +81,8 @@ function onHomeyReady(Homey) {
   const fit = () => Homey.setHeight(document.body.scrollHeight).catch(() => {});
   const showErr = (msg) => { $('err').textContent = msg; $('err').classList.remove('hide'); fit(); };
 
-  if (!s.token) {
-    $('hint').textContent = 'Vul eerst het API-token in bij de instellingen van deze widget (te vinden in de portal onder Instellingen).';
+  if (!s.token || !s.url) {
+    $('hint').textContent = 'Vul eerst het adres van de portal en het API-token in bij de instellingen van deze widget (het token staat in de portal onder Instellingen).';
     $('go').disabled = true;
   }
 
@@ -94,7 +94,7 @@ function onHomeyReady(Homey) {
     $('go').disabled = true; $('go').textContent = 'Bezig…';
     $('err').classList.add('hide');
     try {
-      const r = await Homey.api('POST', '/create', { ...conn, ssid: s.ssid || 'Lofoten', name });
+      const r = await Homey.api('POST', '/create', { ...conn, ssid: s.ssid || '', name });
       $('rname').textContent = r.label || r.name;
       $('qr').innerHTML = r.qr.replace(/^<\?xml[^>]*>\s*/, '');
       $('psk').textContent = r.psk;
@@ -109,7 +109,7 @@ function onHomeyReady(Homey) {
     } catch (e) {
       showErr(e.message || String(e));
     } finally {
-      $('go').disabled = !s.token; $('go').textContent = 'Aanmelden';
+      $('go').disabled = !s.token || !s.url; $('go').textContent = 'Aanmelden';
     }
   });
 

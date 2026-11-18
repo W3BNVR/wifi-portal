@@ -20,18 +20,30 @@ PPSK-profielen) komt uit Omada zelf; niets handmatig configureren.
 
 ## Installeren (Docker)
 
-Je hebt alleen `docker-compose.yml` en een `.env` nodig; het image wordt rechtstreeks uit deze
-GitHub-repo gebouwd (`build.context: https://github.com/W3BNVR/wifi-portal.git#main:portal`).
+Er is een kant-en-klaar image, automatisch gebouwd uit deze repo (amd64 en arm64):
+
+```
+ghcr.io/w3bnvr/wifi-portal:latest
+```
+
+Met Docker Compose: zet `docker-compose.yml` en `.env` in een map en start:
 
 ```sh
 cp .env.example .env      # invullen: Omada-URL, Open API client-id/secret, portalwachtwoord
-docker compose up -d --build
+docker compose up -d
 ```
 
-Bijwerken naar de nieuwste versie uit GitHub:
+Bijwerken naar de nieuwste versie: `docker compose pull && docker compose up -d`.
 
-```sh
-docker compose build --pull --no-cache && docker compose up -d
+In ZimaOS, CasaOS, Portainer of Unraid kan het ook zonder compose: image
+`ghcr.io/w3bnvr/wifi-portal:latest`, poort `8080` in de container (bv. naar `8098`), een map naar
+`/data`, en de omgevingsvariabelen uit `.env.example`.
+
+Liever zelf bouwen uit de broncode? Gebruik in de compose in plaats van `image:`:
+
+```yaml
+build:
+  context: https://github.com/W3BNVR/wifi-portal.git#main:portal
 ```
 
 Open daarna `http://<host>:8098`, log in en kies onder **Instellingen** de site, het PPSK-profiel

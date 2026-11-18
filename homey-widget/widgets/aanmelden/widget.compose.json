@@ -5,8 +5,8 @@
     {
       "id": "url",
       "type": "text",
-      "title": { "en": "Portal address", "nl": "Adres van de portal" },
-      "value": "http://10.0.0.2:8098"
+      "title": { "en": "Portal address, e.g. http://192.168.1.10:8098", "nl": "Adres van de portal, bv. http://192.168.1.10:8098" },
+      "value": ""
     },
     {
       "id": "token",
@@ -17,8 +17,8 @@
     {
       "id": "ssid",
       "type": "text",
-      "title": { "en": "Network for the QR code", "nl": "Netwerk voor de QR-code" },
-      "value": "Lofoten"
+      "title": { "en": "Network (SSID) for the QR code; empty = first of the PPSK profile", "nl": "Netwerk (SSID) voor de QR-code; leeg = eerste van het PPSK-profiel" },
+      "value": ""
     }
   ],
   "api": {
