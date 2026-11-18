@@ -1,0 +1,58 @@
+# Wifi-portal voor ZimaOS / CasaOS: App Store -> Custom install -> Import, plak dit bestand.
+# Vul bij environment je eigen waarden in (of daarna in de app-instellingen van ZimaOS).
+name: wifi-portal
+services:
+  wifi-portal:
+    image: ghcr.io/w3bnvr/wifi-portal:latest
+    container_name: wifi-portal
+    restart: unless-stopped
+    ports:
+      - target: 8080
+        published: "8098"
+        protocol: tcp
+    environment:
+      TZ: Europe/Amsterdam
+      OMADA_URL: https://IP-VAN-JE-OMADA-CONTROLLER:8043
+      OMADA_CLIENT_ID: ""
+      OMADA_CLIENT_SECRET: ""
+      OMADA_WEB_USER: ""
+      OMADA_WEB_PASS: ""
+      PORTAL_PASSWORD: ""
+    volumes:
+      - type: bind
+        source: /DATA/AppData/wifi-portal/data
+        target: /data
+    x-casaos:
+      envs:
+        - container: OMADA_URL
+          description: { en_us: "Omada controller URL, e.g. https://192.168.1.2:8043" }
+        - container: OMADA_CLIENT_ID
+          description: { en_us: "Omada Open API client ID" }
+        - container: OMADA_CLIENT_SECRET
+          description: { en_us: "Omada Open API client secret" }
+        - container: OMADA_WEB_USER
+          description: { en_us: "Omada user for type/vendor/model (optional)" }
+        - container: OMADA_WEB_PASS
+          description: { en_us: "Password of that Omada user (optional)" }
+        - container: PORTAL_PASSWORD
+          description: { en_us: "Login password for the portal" }
+      ports:
+        - container: "8080"
+          description: { en_us: "Web UI" }
+      volumes:
+        - container: /data
+          description: { en_us: "Settings, database, API token" }
+
+x-casaos:
+  architectures: [amd64, arm64]
+  main: wifi-portal
+  title: { en_us: Wifi Portal }
+  tagline: { en_us: "Omada PPSK keys per device" }
+  description: { en_us: "Manage Omada clients and per-device PPSK keys via the Omada Open API." }
+  category: Network
+  author: W3BNVR
+  developer: W3BNVR
+  icon: https://raw.githubusercontent.com/W3BNVR/wifi-portal/main/homey-widget/assets/images/small.png
+  index: /
+  port_map: "8098"
+  scheme: http

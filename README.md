@@ -35,7 +35,10 @@ docker compose up -d
 
 Bijwerken naar de nieuwste versie: `docker compose pull && docker compose up -d`.
 
-In ZimaOS, CasaOS, Portainer of Unraid kan het ook zonder compose: image
+**ZimaOS / CasaOS:** importeer [`zimaos-compose.yml`](zimaos-compose.yml) via *App Store → Custom
+install → Import* en vul de omgevingsvariabelen in.
+
+In Portainer of Unraid kan het ook zonder compose: image
 `ghcr.io/w3bnvr/wifi-portal:latest`, poort `8080` in de container (bv. naar `8098`), een map naar
 `/data`, en de omgevingsvariabelen uit `.env.example`.
 
