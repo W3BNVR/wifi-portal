@@ -1,0 +1,14 @@
+{
+  "title": { "en": "Create a guest wifi key", "nl": "Maak een gastsleutel voor de wifi" },
+  "titleFormatted": { "en": "Create guest key [[name]] valid for [[hours]] hours", "nl": "Maak gastsleutel [[name]] die [[hours]] uur geldig is" },
+  "hint": { "en": "The key works on multiple devices and is removed automatically when it expires.", "nl": "De sleutel werkt op meerdere apparaten en verdwijnt vanzelf als hij verloopt." },
+  "args": [
+    { "type": "text", "name": "name", "placeholder": { "en": "Guest", "nl": "Gast" } },
+    { "type": "number", "name": "hours", "min": 1, "max": 744, "step": 1, "placeholder": { "en": "24", "nl": "24" } }
+  ],
+  "tokens": [
+    { "name": "ssid", "type": "string", "title": { "en": "Network", "nl": "Netwerk" }, "example": "Lofoten" },
+    { "name": "psk", "type": "string", "title": { "en": "Password", "nl": "Wachtwoord" }, "example": "kq7m-x3pa-9fzd" },
+    { "name": "key", "type": "string", "title": { "en": "Key name", "nl": "Sleutelnaam" }, "example": "Gast" }
+  ]
+}

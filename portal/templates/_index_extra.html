@@ -1,0 +1,41 @@
+{% set x = index_extra() %}
+<section class="card" id="gast">
+  <h2>Gasttoegang</h2>
+  <form method="post" action="{{ url_for('guest_new') }}" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="text" name="name" placeholder="Naam (optioneel), bv. Gast Jan" maxlength="64">
+    <select name="dur" onchange="this.form.hours.style.display=this.value==='custom'?'':'none'">
+      <option value="4">4 uur</option><option value="24" selected>24 uur</option>
+      <option value="weekend">tot maandag 09:00</option><option value="168">1 week</option>
+      <option value="custom">eigen duur…</option>
+    </select>
+    <input type="number" name="hours" min="1" max="744" placeholder="uren" style="display:none;width:90px">
+    <button>Gastsleutel maken</button>
+  </form>
+  {% for g in x.guests %}
+  <div class="row"><div class="inline">
+    <span style="flex:1"><strong>{{ g.name }}</strong>{% if g.label and g.label != g.name %} <span class="muted">· {{ g.label }}</span>{% endif %}
+      <span class="tag warn" style="white-space:nowrap">geldig tot {{ (g.expires * 1000)|ago }}</span></span>
+    <a href="{{ url_for('guest_card', name=g.name) }}">QR / kaartje</a>
+    <form method="post" action="{{ url_for('guest_delete') }}" class="inline" onsubmit="return confirm('Gastsleutel {{ g.name }} nu intrekken?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="name" value="{{ g.name }}">
+      <button class="ghost">Intrekken</button>
+    </form>
+  </div></div>
+  {% endfor %}
+  <p class="muted">Een gastsleutel werkt op meerdere apparaten tegelijk, in {{ guest }}, en verdwijnt vanzelf na de gekozen tijd.</p>
+</section>
+
+{% if x.crit or x.paused %}
+<section class="card" id="waakhond">
+  <h2>Waakhond <span class="muted">· {{ x.crit|selectattr('online')|list|length }}/{{ x.crit|length }} online</span></h2>
+  {% for d in x.crit %}
+  <div class="row"><div class="inline">
+    <span style="flex:1"><span class="dot {{ 'on' if d.online }}"></span> <a href="{{ url_for('client', mac=d.mac) }}"><strong>{{ d.name }}</strong></a>
+      {% if not d.online %}<span class="tag warn">offline{{ ' sinds ' ~ ((d.since * 1000)|ago) if d.since }}</span>{% endif %}</span>
+    <span class="muted">melding na {{ d.min }} min</span>
+  </div></div>
+  {% endfor %}
+  {% if x.paused %}<p class="muted" style="margin-top:8px">Internetpauze actief: {% for p in x.paused %}<a href="{{ url_for('client', mac=p.mac) }}">{{ p.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+</section>
+{% endif %}

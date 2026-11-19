@@ -16,7 +16,19 @@ PPSK-profielen) komt uit Omada zelf; niets handmatig configureren.
   (draadloos via de sleutel, bekabeld via de switchpoort, alleen als dat veilig kan), type/merk/model en icoon.
 - **Privé-MAC** (willekeurig MAC-adres): nooit een vast IP; sleutels verlopen na X uur.
 - **Eigen database** (SQLite) met inventaris en logboek; namen en type die Omada vergeet worden teruggezet.
-- **API voor de Homey-widget** (`/api/v1/new`, `/api/v1/key/<naam>`, Bearer-token uit Instellingen).
+- **Gastsleutels met tijdslimiet**: 4 uur, 24 uur, tot maandag 09:00, een week of eigen duur; QR-code en
+  printbaar kaartje; verdwijnen vanzelf.
+- **Waakhond**: markeer apparaten als kritiek; melding (logboek + Homey) als ze X minuten offline zijn en
+  weer terug. Nieuwe apparaten worden binnen ±30 s gemeld.
+- **Internetpauze** per apparaat: direct, voor X minuten of op een dagschema (blokkeert de client in Omada).
+- **Onderhoud**: zwak signaal (met 24 u/7 d-gemiddelde per apparaat), VLAN-check op basis van eigen regels,
+  opruimlijst (lang niet geziene sleutels/apparaten), nachtelijke backup met herstel per onderdeel.
+- **ACL tussen VLAN's**: matrix (standaard dicht, jij zet open wat mag), stateful zodat antwoorden terugkomen,
+  uitzonderingen per apparaat en desnoods per poort/protocol (IP wordt automatisch vastgezet). Beheert alleen
+  regels die met `portal:` beginnen; eigen regels blijven ongemoeid. Snapshot vooraf, versies terugzetten, en
+  automatisch terugdraaien als de pagina na toepassen niet binnen 3 minuten bevestigt.
+- **API voor Homey** (Bearer-token uit Instellingen): `/api/v1/new`, `/api/v1/key/<naam>`, `/api/v1/events`,
+  `/api/v1/devices`, `/api/v1/guest`, `/api/v1/pause`.
 
 ## Installeren (Docker)
 
@@ -69,4 +81,9 @@ cp .homeycompose/app.json app.json
 homey app install
 ```
 
-Vul in de widget-instellingen het portal-adres en het API-token (portal → Instellingen) in.
+Vul in de widget-instellingen het portal-adres en het API-token (portal → Instellingen) in, en voor de
+Flow-kaarten ook in de app-instellingen (Apps → Wifi-portal → Instellingen).
+
+Flow-kaarten:
+- *Wanneer*: nieuw apparaat op het netwerk · kritiek apparaat offline · kritiek apparaat weer online
+- *Dan*: maak een gastsleutel (geeft netwerk + wachtwoord als tags) · internetpauze aan/uit voor een apparaat

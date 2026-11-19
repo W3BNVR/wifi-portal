@@ -191,7 +191,8 @@ def psk_name(label, fallback="apparaat"):
 
 def is_shared(e):
     """Gedeelde sleutel = niet aan een MAC gebonden en niet door de portal aangemaakt (wachtend)."""
-    return not e.get("mac") and e["name"] not in state()["keys"]
+    st = state()
+    return not e.get("mac") and e["name"] not in st["keys"] and e["name"] not in st.get("guest", {})
 
 
 def psk_replace(sid, pid, old, new):
@@ -298,6 +299,8 @@ def index():
         elif e["name"] in st:
             e["created"] = st[e["name"]].get("created", 0)
             pending.append(e)
+        elif e["name"] in state().get("guest", {}):
+            pass  # gastsleutel: eigen kaart (extras)
         else:
             shared.append(e)
 
@@ -1223,6 +1226,9 @@ def _reconnect(sid, mac):
         OMADA.reconnect(sid, mac)
     except Exception:  # noqa: BLE001 - offline apparaat kan niet herverbinden
         pass
+
+
+import extras  # noqa: E402,F401  - waakhond, gasten, pauze, onderhoud, ACL, Homey-API
 
 
 if __name__ == "__main__":

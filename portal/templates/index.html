@@ -2,7 +2,7 @@
 {% block body %}
 <header>
   <h1>Wifi-toegang</h1>
-  <nav><a href="{{ url_for('all_clients') }}">Alle apparaten</a><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('index') }}">Vernieuwen</a><a href="{{ url_for('setup') }}">Instellingen</a><a href="{{ url_for('logout') }}">Uitloggen</a></nav>
+  <nav><a href="{{ url_for('all_clients') }}">Alle apparaten</a><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('maintenance') }}">Onderhoud</a><a href="{{ url_for('acl_page') }}">ACL</a><a href="{{ url_for('setup') }}">Instellingen</a><a href="{{ url_for('logout') }}">Uitloggen</a></nav>
 </header>
 
 <section class="card">
@@ -15,6 +15,8 @@
   <p class="muted">De sleutel werkt meteen, in <strong>{{ guest }}</strong>. Verbind het apparaat en koppel het hieronder;
     pas dan hoort de sleutel bij precies één apparaat. Niet gekoppeld binnen {{ '%g' % phours }} uur? Dan vervalt hij vanzelf.</p>
 </section>
+
+{% include "_index_extra.html" %}
 
 {% if pending %}
 <section class="card">

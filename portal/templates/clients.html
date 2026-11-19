@@ -29,7 +29,7 @@
 {% block body %}
 <header>
   <h1>Alle apparaten</h1>
-  <nav><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('setup') }}">Instellingen</a></nav>
+  <nav><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('maintenance') }}">Onderhoud</a><a href="{{ url_for('acl_page') }}">ACL</a></nav>
 </header>
 <div class="inline" style="margin-bottom:12px">
   <input type="text" id="q" placeholder="Zoek op naam, type, MAC, IP, VLAN…" oninput="filt()" autofocus>

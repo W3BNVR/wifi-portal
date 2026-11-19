@@ -109,6 +109,8 @@
   <datalist id="vendors">{% for v in vendors %}<option value="{{ v }}">{% endfor %}</datalist>
 </section>
 
+{% include "_client_extra.html" %}
+
 <section class="card">
   <h2>Geschiedenis</h2>
   {% for e in history %}

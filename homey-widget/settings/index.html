@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <script type="text/javascript" src="/homey.js" data-origin="settings"></script>
+</head>
+<body>
+  <header class="homey-header">
+    <h1 class="homey-title">Wifi-portal</h1>
+    <p class="homey-subtitle">Verbinding met de wifi-portal, voor de Flow-kaarten (meldingen, gastsleutels, internetpauze).</p>
+  </header>
+  <fieldset class="homey-form-fieldset">
+    <div class="homey-form-group">
+      <label class="homey-form-label" for="url">Adres van de portal</label>
+      <input class="homey-form-input" id="url" type="text" placeholder="http://192.168.1.10:8098">
+    </div>
+    <div class="homey-form-group">
+      <label class="homey-form-label" for="token">API-token (portal → Instellingen)</label>
+      <input class="homey-form-input" id="token" type="text">
+    </div>
+  </fieldset>
+  <button id="save" class="homey-button-primary-full">Opslaan</button>
+  <p id="msg" class="homey-form-hint"></p>
+  <script type="text/javascript">
+    function onHomeyReady(Homey) {
+      const url = document.getElementById('url'), token = document.getElementById('token'), msg = document.getElementById('msg');
+      Homey.get('url', (e, v) => { if (v) url.value = v; });
+      Homey.get('token', (e, v) => { if (v) token.value = v; });
+      document.getElementById('save').addEventListener('click', () => {
+        Homey.set('url', url.value.trim(), () => Homey.set('token', token.value.trim(), (err) => {
+          msg.textContent = err ? ('Fout: ' + err) : 'Opgeslagen. Meldingen komen binnen ongeveer 30 seconden binnen.';
+        }));
+      });
+      Homey.ready();
+    }
+  </script>
+</body>
+</html>

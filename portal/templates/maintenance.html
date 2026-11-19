@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block body %}
+<header>
+  <h1>Onderhoud</h1>
+  <nav><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('all_clients') }}">Alle apparaten</a><a href="{{ url_for('acl_page') }}">ACL</a></nav>
+</header>
+
+<section class="card" id="signaal">
+  <h2>Zwak signaal <span class="muted">· {{ weak|length }} apparaat/apparaten onder {{ thr }} dBm</span></h2>
+  {% for w in weak %}
+  <div class="row"><div>
+    <a href="{{ url_for('client', mac=w.mac) }}"><strong>{{ w.name }}</strong></a>
+    {% if w.structural %}<span class="tag warn">structureel</span>{% else %}<span class="tag">nu</span>{% endif %}
+    <div class="muted">nu {{ w.rssi }} dBm{% if w.a24 is not none %} · gem. 24 u {{ w.a24|round|int }}{% endif %}{% if w.a7 is not none %} · gem. 7 d {{ w.a7|round|int }} · slechtst {{ w.mn }}{% endif %}
+      · SNR {{ w.snr }} · {{ w.ap }} · {{ w.band }} kanaal {{ w.ch }}</div>
+  </div></div>
+  {% else %}<p class="muted">Alle draadloze apparaten hebben een goed signaal.</p>{% endfor %}
+  <p class="muted">Gemeten elke 5 minuten. “Structureel” = ook het weekgemiddelde is te zwak: verplaats het apparaat of het accesspoint,
+    of zet het apparaat vast aan een dichterbij gelegen AP in Omada. Rond −70 dBm is prima, onder −75 wordt het wankel.</p>
+</section>
+
+<section class="card" id="vlan">
+  <h2>VLAN-check <span class="muted">· {{ wrong|length }} afwijking(en)</span></h2>
+  {% for w in wrong %}
+  <div class="row"><div class="inline">
+    <span style="flex:1"><a href="{{ url_for('client', mac=w.mac) }}"><strong>{{ w.name }}</strong></a>
+      <span class="muted">zit in <strong>{{ w.now }}</strong>, verwacht <strong>{{ w.exp }}</strong> ({{ w.why }})</span></span>
+    <a href="{{ url_for('client', mac=w.mac) }}#vlan">verplaatsen…</a>
+  </div></div>
+  {% else %}<p class="muted">Alle apparaten zitten in het VLAN dat de regels verwachten.</p>{% endfor %}
+</section>
+
+<section class="card" id="cleanup">
+  <h2>Opruimlijst <span class="muted">· niet gezien in {{ days }} dagen</span></h2>
+  <form method="post" onsubmit="return confirm('Aangevinkte sleutels verwijderen en apparaten uit de portal-inventaris halen?')">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="cleanup">
+    <h3 style="font-size:14px;margin:6px 0">Eigen sleutels</h3>
+    {% for k in old_keys %}
+    <label class="row" style="display:flex;gap:8px"><input type="checkbox" name="key" value="{{ k.name }}">
+      <span><strong>{{ k.name }}</strong> <span class="mac">{{ k.mac }}</span> <span class="muted">· {{ k.vlan }} · laatst {{ ((k.last or 0) * 1000)|ago if k.last else 'nooit gezien' }}</span></span></label>
+    {% else %}<p class="muted">Geen.</p>{% endfor %}
+    <h3 style="font-size:14px;margin:12px 0 6px">Oude apparaten in de portal-inventaris (zonder sleutel, langer dan {{ [days, 90]|max }} dagen weg)</h3>
+    {% for d in old_inv[:200] %}
+    <label class="row" style="display:flex;gap:8px"><input type="checkbox" name="forget" value="{{ d.mac }}">
+      <span>{{ d.name }} <span class="mac">{{ d.mac }}</span> <span class="muted">· laatst {{ ((d.last or 0) * 1000)|ago if d.last else '?' }}</span></span></label>
+    {% else %}<p class="muted">Geen.</p>{% endfor %}
+    {% if old_keys or old_inv %}<div style="margin-top:8px"><button>Aangevinkte opruimen</button></div>{% endif %}
+  </form>
+  <p class="muted">Gedeelde sleutels staan hier nooit tussen.</p>
+</section>
+
+<section class="card" id="backup">
+  <h2>Backup</h2>
+  <form method="post" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="backup">
+    <button>Nu backup maken</button>
+    <span class="muted">Elke nacht om 03:00 automatisch, {{ keep }} dagen bewaard{{ ', ook in ' ~ extra_dir if extra_dir }}.</span>
+  </form>
+  {% for b in backups[:30] %}
+  <details class="row"><summary><strong>{{ b.file }}</strong> <span class="muted">· {{ (b.size / 1024)|round(1) }} kB</span></summary>
+    <form method="post" style="display:grid;gap:4px;margin-top:6px" onsubmit="return confirm('Gekozen onderdelen terugzetten uit {{ b.file }}?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="restore"><input type="hidden" name="file" value="{{ b.file }}">
+      <label><input type="checkbox" name="part" value="names" checked> Namen terugzetten in Omada (alleen waar Omada de naam kwijt is)</label>
+      <label><input type="checkbox" name="part" value="keys"> Ontbrekende eigen sleutels terugzetten (gedeelde sleutels nooit)</label>
+      <label><input type="checkbox" name="part" value="overrides"> Notities, iconen, waakhond en pauze-instellingen</label>
+      <label><input type="checkbox" name="part" value="acl"> ACL-instellingen (daarna zelf toepassen)</label>
+      <div class="inline"><button>Terugzetten</button><a href="{{ url_for('backup_download', name=b.file) }}">Downloaden</a></div>
+    </form>
+  </details>
+  {% else %}<p class="muted">Nog geen backups.</p>{% endfor %}
+  <p class="muted">Een backup bevat ook de wifi-wachtwoorden van alle sleutels; bewaar downloads zorgvuldig.</p>
+</section>
+
+<section class="card" id="settings">
+  <h2>Instellingen voor deze pagina</h2>
+  <form method="post" style="display:grid;gap:10px">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="settings">
+    <label>VLAN-regels (één per regel: <code>zoekterm =&gt; VLAN-naam of -nummer</code>)<br>
+      <textarea name="vlan_rules" rows="7" style="width:100%;font-family:ui-monospace,monospace">{{ rules_text }}</textarea>
+      <span class="muted">Eerst telt het naam-voorvoegsel (“IoT - Oven” → IoT), daarna type/categorie (bv. <code>camera</code>).
+        VLAN's: {% for n in nets %}{{ n.name }} ({{ n.vlan }}){{ ', ' if not loop.last }}{% endfor %}</span></label>
+    <div class="inline">
+      <label>Zwak signaal onder <input type="number" name="signal_threshold" value="{{ thr }}" min="-95" max="-40" style="width:80px"> dBm</label>
+      <label>Opruimen na <input type="number" name="cleanup_days" value="{{ days }}" min="1" style="width:80px"> dagen</label>
+      <label>Backups bewaren <input type="number" name="backup_keep" value="{{ keep }}" min="1" style="width:80px"> dagen</label>
+    </div>
+    <div><button>Opslaan</button></div>
+  </form>
+</section>
+{% endblock %}

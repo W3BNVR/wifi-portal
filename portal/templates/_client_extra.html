@@ -1,0 +1,40 @@
+{% set x = client_extra_info(mac) %}
+<section class="card" id="extra">
+  <div class="split" style="margin-top:0">
+    <div>
+      <h2>Waakhond</h2>
+      <form method="post" action="{{ url_for('client_extra', mac=mac) }}" style="display:grid;gap:8px">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="watch">
+        <label><input type="checkbox" name="critical" value="1" {{ 'checked' if x.critical }}> Kritiek apparaat: melden als het offline gaat</label>
+        <label class="inline">na <input type="number" name="crit_min" min="1" max="1440" value="{{ x.crit_min }}" style="width:80px"> minuten offline</label>
+        <div><button>Opslaan</button></div>
+      </form>
+      {% if x.critical and x.alerted %}<p class="tag warn" style="display:inline-block;margin-top:8px">nu offline gemeld</p>{% endif %}
+      <p class="muted">Meldingen gaan naar het logboek en naar Homey (Flow-kaart “Kritiek apparaat offline”).</p>
+    </div>
+    <div>
+      <h2>Internetpauze {% if x.paused_now %}<span class="tag warn">actief</span>{% endif %}</h2>
+      <form method="post" action="{{ url_for('client_extra', mac=mac) }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="pause">
+        {% if x.pause or x.pause_until %}
+          <button name="what" value="off">Pauze stoppen</button>
+          {% if x.pause_until %}<span class="muted">tot {{ (x.pause_until * 1000)|ago }}</span>{% endif %}
+        {% else %}
+          <button name="what" value="on">Nu pauzeren</button>
+          <span class="muted">of</span>
+          <input type="number" name="minutes" value="30" min="1" max="1440" style="width:80px"> min
+          <button name="what" value="for" class="ghost" style="color:var(--acc)">Tijdelijk</button>
+        {% endif %}
+      </form>
+      <form method="post" action="{{ url_for('client_extra', mac=mac) }}" style="display:grid;gap:6px;margin-top:10px">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="sched">
+        <label><input type="checkbox" name="on" value="1" {{ 'checked' if x.sched.on }}> Elke dag pauzeren van
+          <input type="time" name="from" value="{{ x.sched['from'] }}"> tot <input type="time" name="to" value="{{ x.sched.to }}"></label>
+        <div class="inline">{% for d in ['ma','di','wo','do','vr','za','zo'] %}
+          <label class="muted"><input type="checkbox" name="days" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 in x.sched.days }}>{{ d }}</label>{% endfor %}</div>
+        <div><button>Schema opslaan</button>{% if x.in_sched %} <span class="tag warn">schema loopt nu</span>{% endif %}</div>
+      </form>
+      <p class="muted">Pauze blokkeert het apparaat in Omada (geen wifi/netwerk), tot de pauze stopt.</p>
+    </div>
+  </div>
+</section>

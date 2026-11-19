@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block body %}
+<style>
+  table.mx { border-collapse:collapse; width:100%; font-size:13px }
+  table.mx th, table.mx td { border:1px solid var(--line); padding:6px; text-align:center }
+  table.mx th.r { text-align:left; white-space:nowrap }
+  table.mx td.self { background:var(--line) }
+  table.mx input { width:18px; height:18px }
+  .wrap { overflow-x:auto }
+  .rule { font-size:13px; padding:4px 0; border-top:1px solid var(--line) }
+  .rule:first-child { border-top:0 }
+  .pol0 { color:var(--err) } .pol1 { color:var(--ok) }
+</style>
+<header>
+  <h1>ACL tussen VLAN's</h1>
+  <nav><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('all_clients') }}">Alle apparaten</a><a href="{{ url_for('maintenance') }}">Onderhoud</a></nav>
+</header>
+
+<section class="card">
+  <h2>Status
+    {% if a.enabled and a.applied %}<span class="tag ok">actief op de gateway</span>{% else %}<span class="tag">uit — alle VLAN's kunnen bij elkaar</span>{% endif %}
+    {% if pending %}<span class="tag warn">niet-toegepaste wijzigingen</span>{% endif %}</h2>
+  {% if confirm_left > 0 %}
+  <p class="flash err" id="dm">Wijziging wacht op bevestiging… (<span id="cl">{{ confirm_left }}</span> s)</p>
+  {% endif %}
+  <p class="muted">Standaard zit alles dicht: een VLAN mag alleen verbindingen starten naar een ander VLAN als je dat hieronder
+    aanvinkt (of met een uitzondering). Antwoorden op toegestane verbindingen komen altijd terug, dus “User → IoT” aan en
+    “IoT → User” uit betekent: je telefoon kan de lampen bedienen, maar de lampen kunnen niet zelf je telefoon benaderen.
+    Verkeer binnen hetzelfde VLAN, naar de gateway (DHCP/DNS) en naar internet blijft gewoon werken.</p>
+  {% if me %}<p class="muted">Je zit zelf nu in <strong>{{ me.name }}</strong>.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Matrix <span class="muted">· rij = van, kolom = naar</span></h2>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="matrix">
+    <div class="wrap"><table class="mx">
+      <tr><th class="r">van ↓ / naar →</th>{% for d in nets %}<th>{{ d.name }}<br><span class="muted">{{ d.vlan }}</span></th>{% endfor %}</tr>
+      {% for s in nets %}
+      <tr><th class="r">{{ s.name }} <span class="muted">{{ s.vlan }}</span></th>
+        {% for d in nets %}
+          {% if s.vlan == d.vlan %}<td class="self">—</td>
+          {% else %}{% set k = s.vlan ~ '>' ~ d.vlan %}
+          <td title="{{ s.name }} mag verbindingen starten naar {{ d.name }}"><input type="checkbox" name="allow" value="{{ k }}" {{ 'checked' if k in a.allow }}></td>
+          {% endif %}
+        {% endfor %}</tr>
+      {% endfor %}
+    </table></div>
+    <div style="margin-top:8px"><button>Matrix opslaan</button> <span class="muted">Opslaan past nog niets toe op de gateway.</span></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Uitzonderingen per apparaat <span class="muted">· {{ a.exceptions|length }}</span></h2>
+  {% for x in a.exceptions %}
+  <div class="row"><div class="inline">
+    <span style="flex:1">{{ ex_label(x, inv) }} <span class="muted mac">{{ x.src_ip }}{{ ' → ' ~ x.dst_ip if x.dst_ip }}</span>
+      {% if x.note %}<span class="muted">· {{ x.note }}</span>{% endif %}</span>
+    <form method="post" class="inline" onsubmit="return confirm('Uitzondering verwijderen?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="del_ex"><input type="hidden" name="id" value="{{ x.id }}">
+      <button class="ghost">Verwijderen</button>
+    </form>
+  </div></div>
+  {% endfor %}
+  <details style="margin-top:8px" {{ 'open' if not a.exceptions }}><summary><strong>Uitzondering toevoegen</strong></summary>
+  <form method="post" style="display:grid;gap:8px;margin-top:8px">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add_ex">
+    <label>Van apparaat<br>
+      <select name="src" required style="width:100%">
+        {% for g in devs|groupby('vlan') %}<optgroup label="{{ g.grouper or 'Onbekend' }}">
+          {% for d in g.list %}<option value="{{ d.mac }}" {{ 'disabled' if d.random }}>{{ d.name }} — {{ d.ip }}{{ ' (privé-MAC)' if d.random }}{{ '' if d.online else ' · offline' }}</option>{% endfor %}
+        </optgroup>{% endfor %}
+      </select></label>
+    <div class="inline">
+      <label><input type="radio" name="dst_kind" value="vlan" checked onchange="dk(this)"> naar een heel VLAN</label>
+      <label><input type="radio" name="dst_kind" value="device" onchange="dk(this)"> naar één apparaat</label>
+    </div>
+    <select name="dst_vlan" id="dv">{% for n in nets %}<option value="{{ n.vlan }}">{{ n.name }} ({{ n.vlan }})</option>{% endfor %}</select>
+    <select name="dst_dev" id="dd" style="display:none">
+      {% for g in devs|groupby('vlan') %}<optgroup label="{{ g.grouper or 'Onbekend' }}">
+        {% for d in g.list %}<option value="{{ d.mac }}" {{ 'disabled' if d.random }}>{{ d.name }} — {{ d.ip }}{{ ' (privé-MAC)' if d.random }}</option>{% endfor %}
+      </optgroup>{% endfor %}
+    </select>
+    <div class="inline">
+      <label>Protocol <select name="proto">{% for k, v in proto.items() %}<option value="{{ k }}">{{ v[1] }}</option>{% endfor %}</select></label>
+      <label>Poort(en) <input type="text" name="ports" placeholder="leeg = alle, of 443,1883,8000-8010" style="width:220px"></label>
+    </div>
+    <input type="text" name="note" placeholder="Opmerking (optioneel), bv. Homey bedient de lampen" maxlength="200">
+    <div><button>Toevoegen</button></div>
+    <p class="muted">De gateway werkt met IP-adressen: de portal zet het IP van de gekozen apparaten daarom automatisch vast.
+      Apparaten met een privé-MAC kunnen geen uitzondering krijgen.</p>
+  </form>
+  </details>
+</section>
+
+<section class="card">
+  <h2>Toepassen</h2>
+  <details><summary>Regels die de portal op de gateway zet ({{ want|length }})</summary>
+    {% for r in want %}<div class="rule"><span class="pol{{ r.policy }}">{{ 'toestaan' if r.policy else 'blokkeren' }}</span> · {{ r.desc[8:] }}</div>{% endfor %}
+  </details>
+  <div class="inline" style="margin-top:10px;align-items:flex-start">
+    <form method="post" style="display:grid;gap:8px"
+          onsubmit="return confirm('ACL toepassen op de gateway? Alles wat niet is aangevinkt wordt tussen VLAN\'s geblokkeerd.')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="apply">
+      <div><button>Toepassen op de gateway</button></div>
+      <label class="muted"><input type="checkbox" name="force" value="1"> toch toepassen, ook als ik de portal daarna zelf niet meer kan bereiken</label>
+    </form>
+    {% if a.enabled %}
+    <form method="post" onsubmit="return confirm('Alle portal-regels van de gateway halen? Alle VLAN\'s kunnen daarna weer bij elkaar.')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="disable">
+      <button class="ghost">ACL uitzetten</button>
+    </form>
+    {% endif %}
+  </div>
+  <p class="muted">Na toepassen bevestigt deze pagina automatisch dat je de portal nog kunt bereiken. Lukt dat niet binnen 3 minuten,
+    dan zet de portal zelf de vorige instellingen terug.</p>
+</section>
+
+{% if a.versions %}
+<section class="card">
+  <h2>Eerder toegepast</h2>
+  {% for v in a.versions[:10] %}
+  <div class="row"><div class="inline">
+    <span style="flex:1"><span class="muted">{{ (v.ts * 1000)|ago }}</span> · {{ v.reason }} · {{ 'aan' if v.enabled else 'uit' }},
+      {{ v.allow|length }} toegestaan, {{ v.exceptions|length }} uitzondering(en)</span>
+    {% if not loop.first %}
+    <form method="post" class="inline" onsubmit="return confirm('Deze versie terugzetten en toepassen?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="restore"><input type="hidden" name="v" value="{{ loop.index0 }}">
+      <button class="ghost" style="color:var(--acc)">Terugzetten</button>
+    </form>{% endif %}
+  </div></div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Je eigen regels in Omada <span class="muted">· {{ user_rules|length }}, blijven ongemoeid</span></h2>
+  {% for r in user_rules %}<div class="rule"><span class="pol{{ r.policy }}">{{ 'toestaan' if r.policy else 'blokkeren' }}</span> ·
+    {{ r.description }} {% if not r.status %}<span class="tag">uit</span>{% endif %}</div>{% endfor %}
+</section>
+
+<script>
+function dk(r){ const v=r.value==='vlan'; document.getElementById('dv').style.display=v?'':'none'; document.getElementById('dd').style.display=v?'none':''; }
+{% if confirm_left > 0 %}
+setTimeout(()=>fetch('{{ url_for('acl_confirm') }}', {method:'POST', body:new URLSearchParams({csrf:'{{ csrf }}'})})
+  .then(r=>r.json()).then(j=>{ if(j.ok){ const d=document.getElementById('dm'); d.className='flash ok';
+    d.textContent='Bevestigd: de portal is na de wijziging nog bereikbaar.'; } }).catch(()=>{}), 4000);
+{% endif %}
+</script>
+{% endblock %}

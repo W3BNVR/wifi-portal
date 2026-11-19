@@ -1,0 +1,11 @@
+{
+  "title": { "en": "A new device joined the network", "nl": "Er is een nieuw apparaat op het netwerk" },
+  "hint": { "en": "Triggers when the wifi portal sees a MAC address for the first time.", "nl": "Gaat af als de wifi-portal een MAC-adres voor het eerst ziet." },
+  "tokens": [
+    { "name": "name", "type": "string", "title": { "en": "Name", "nl": "Naam" }, "example": "android-1234" },
+    { "name": "mac", "type": "string", "title": { "en": "MAC address", "nl": "MAC-adres" }, "example": "AA-BB-CC-11-22-33" },
+    { "name": "vlan", "type": "string", "title": { "en": "Network", "nl": "Netwerk" }, "example": "Guest" },
+    { "name": "ip", "type": "string", "title": { "en": "IP address", "nl": "IP-adres" }, "example": "192.168.99.7" },
+    { "name": "detail", "type": "string", "title": { "en": "Description", "nl": "Omschrijving" }, "example": "Nieuw apparaat gezien: android-1234 (Guest, 192.168.99.7)" }
+  ]
+}

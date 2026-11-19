@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block body %}
+<style>
+  .gcard { max-width:420px; margin:0 auto; text-align:center; border:2px solid var(--line); border-radius:16px; padding:24px }
+  .gcard h1 { font-size:24px; margin:0 0 4px }
+  .gcard .qr svg { width:240px; height:240px }
+  .gcard dl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; text-align:left; margin:16px auto 0; max-width:320px }
+  .gcard dt { color:var(--mute) } .gcard dd { margin:0; font-weight:600; word-break:break-all }
+  @media print {
+    header, .noprint, .flash { display:none !important }
+    body { background:#fff; color:#000 } main { padding:0 }
+    .gcard { border:2px solid #000; margin-top:20mm } .gcard dt { color:#444 }
+  }
+</style>
+<header class="noprint"><h1>Gastsleutel</h1><nav><a href="{{ url_for('index') }}#gast">Overzicht</a></nav></header>
+
+<div class="gcard">
+  <h1>Welkom! 📶</h1>
+  <p class="muted">Scan de code met je camera om te verbinden</p>
+  <div class="qr">{{ qr }}</div>
+  <dl>
+    <dt>Netwerk</dt><dd>{{ ssid }}</dd>
+    <dt>Wachtwoord</dt><dd class="mac" style="font-size:18px">{{ e.psk }}</dd>
+    <dt>Geldig tot</dt><dd>{{ (meta.expires * 1000)|ago }}</dd>
+  </dl>
+</div>
+
+<div class="noprint" style="text-align:center;margin-top:16px">
+  {% if ssids|length > 1 %}
+  <form method="get" class="inline" style="justify-content:center;margin-bottom:10px">
+    <label class="muted">QR voor netwerk</label>
+    <select name="ssid" onchange="this.form.submit()">{% for s in ssids %}<option {{ 'selected' if s == ssid }}>{{ s }}</option>{% endfor %}</select>
+  </form>
+  {% endif %}
+  <button type="button" onclick="window.print()">Afdrukken</button>
+  <button type="button" onclick="navigator.clipboard.writeText('{{ e.psk }}').then(()=>this.textContent='Gekopieerd')">Kopieer wachtwoord</button>
+  <p class="muted">Werkt op meerdere apparaten tegelijk, in {{ vlan }}. Verloopt vanzelf; daarna moeten gasten opnieuw verbinden met een nieuwe sleutel.</p>
+</div>
+{% endblock %}

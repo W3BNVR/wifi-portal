@@ -1,0 +1,13 @@
+{
+  "title": { "en": "Pause or resume internet for a device", "nl": "Internetpauze voor een apparaat" },
+  "titleFormatted": { "en": "Set internet pause for [[device]] to [[state]] for [[minutes]] minutes (0 = until resumed)", "nl": "Zet internetpauze van [[device]] [[state]] voor [[minutes]] minuten (0 = tot je hem stopt)" },
+  "hint": { "en": "Blocks the device in Omada. Minutes only apply when pausing.", "nl": "Blokkeert het apparaat in Omada. Minuten tellen alleen bij pauzeren." },
+  "args": [
+    { "type": "autocomplete", "name": "device", "placeholder": { "en": "Device", "nl": "Apparaat" } },
+    { "type": "dropdown", "name": "state", "values": [
+      { "id": "on", "title": { "en": "on", "nl": "aan" } },
+      { "id": "off", "title": { "en": "off", "nl": "uit" } }
+    ] },
+    { "type": "number", "name": "minutes", "min": 0, "max": 1440, "step": 1, "placeholder": { "en": "0", "nl": "0" } }
+  ]
+}

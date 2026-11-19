@@ -1,0 +1,10 @@
+{
+  "title": { "en": "A critical device went offline", "nl": "Een kritiek apparaat is offline" },
+  "hint": { "en": "Mark devices as critical on their page in the wifi portal (watchdog).", "nl": "Markeer apparaten als kritiek op hun pagina in de wifi-portal (waakhond)." },
+  "tokens": [
+    { "name": "name", "type": "string", "title": { "en": "Name", "nl": "Naam" }, "example": "IoT - OTGW" },
+    { "name": "mac", "type": "string", "title": { "en": "MAC address", "nl": "MAC-adres" }, "example": "C4-5B-BE-61-2E-5B" },
+    { "name": "vlan", "type": "string", "title": { "en": "Network", "nl": "Netwerk" }, "example": "IoT" },
+    { "name": "detail", "type": "string", "title": { "en": "Description", "nl": "Omschrijving" }, "example": "IoT - OTGW is al 5 min offline" }
+  ]
+}
