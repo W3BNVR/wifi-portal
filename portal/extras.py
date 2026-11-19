@@ -235,6 +235,8 @@ def _monitor_loop():
                     _acl_deadman()
                 if n % 10 == 0:
                     _sample_signal(cl)
+                    import dashboard
+                    dashboard.sample(cl)
                 if n % 20 == 0:
                     _backup_if_due()
         except Exception as e:  # noqa: BLE001
@@ -1166,3 +1168,6 @@ def acl_confirm():
 # =============================================================================
 if os.environ.get("PORTAL_NO_SYNC") != "1":
     threading.Thread(target=_monitor_loop, daemon=True, name="monitor").start()
+
+
+import dashboard  # noqa: E402,F401  - startpagina

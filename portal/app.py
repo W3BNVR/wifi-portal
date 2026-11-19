@@ -224,7 +224,7 @@ def login():
             session.update(ok=True, csrf=secrets.token_hex(16))
             session.permanent = True
             nxt = request.args.get("next", "")
-            return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("index"))
+            return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")
         time.sleep(1)
         flash("Wachtwoord onjuist", "err")
     return render_template("login.html")
@@ -272,7 +272,7 @@ def setup():
 
 
 # -- overzicht --------------------------------------------------------------
-@app.get("/")
+@app.get("/sleutels")
 @login_required
 @configured
 def index():
@@ -728,18 +728,12 @@ def load_ports(sid, active):
     return ports
 
 
-@app.get("/clients")
-@login_required
-@configured
-def all_clients():
-    try:
-        c, sid, pid, prof, nets, vname, st = context()
-        active_list = OMADA.clients(sid)
-        known = OMADA.known_clients(sid)
-    except Exception as e:  # noqa: BLE001
-        return render_template("error.html", error=e)
+def client_rows():
+    """Alle apparaten (portal-database + Omada bekend + actief) als platte lijst, één rij per apparaat."""
+    c, sid, pid, prof, nets, vname, st = context()
+    active_list = OMADA.clients(sid)
+    known = OMADA.known_clients(sid)
     active = {norm_mac(x["mac"]): x for x in active_list}
-    ports = load_ports(sid, active_list)
     keys = {e["mac"]: e for e in prof["entries"] if e["mac"]}
     ov_all = overrides()
     try:
@@ -753,7 +747,7 @@ def all_clients():
                      "vid": d.get("vlan"), "wireless": bool(d.get("wireless")), "ip": d.get("ip"),
                      "deviceType": d.get("dtype"), "vendor": d.get("vendor"), "model": d.get("model"),
                      "deviceCategory": d.get("category"), "lastSeen": (d.get("last_seen") or 0) * 1000,
-                     "only_db": True}
+                     "only_db": True, "conn_db": d.get("conn") or ""}
     for k in known:
         mac = norm_mac(k["mac"])
         base = rows.get(mac, {})
@@ -764,38 +758,86 @@ def all_clients():
         rows[mac] = {**rows.get(mac, {}), **a, "mac": mac, "active": True, "only_db": False}
         if not rows[mac].get("name") or rows[mac]["name"] == a["mac"]:
             rows[mac]["name"] = (inv.get(mac) or {}).get("name") or ""
-    wireless, wired = [], []
+    out = []
     for r in rows.values():
         ov = ov_all.get(r["mac"], {})
         r["icon"] = icon_for(r, ov)
         r["desc"] = describe(r, ov)
         r["vlan"] = r.get("vid")
         r["vlan_name"] = vname.get(r["vlan"], f"VLAN {r['vlan']}" if r["vlan"] else "")
-        r["vlan_sort"] = r["vlan"] or 9999
-        r["conn"] = _conn(r) if r["active"] else ""
+        r["conn"] = _conn(r) if r["active"] else (r.get("conn_db") or "")
         r["random"] = is_random_mac(r["mac"])
         r["key"] = keys.get(r["mac"])
-        if r.get("wireless"):
-            if r["key"]:
-                r["mode"], r["why"] = "key", ""
-            elif r.get("ppskProfileName") == prof["name"] or (not r["active"]):
-                r["mode"] = "ownkey"
-                r["why"] = "Krijgt een eigen sleutel in het gekozen VLAN (die voer je daarna op het apparaat in)"
-            else:
-                r["mode"], r["why"] = "", f"VLAN komt van SSID '{r.get('ssid')}' (geen PPSK)"
-            wireless.append(r)
-        else:
-            if r["active"]:
-                ok, why, _ = port_check(r, active_list, ports)
-                r["mode"], r["why"] = ("port" if ok else ""), why
-            else:
-                r["mode"], r["why"] = "", "Offline: poort onbekend"
-            wired.append(r)
-    sort = lambda r: (not r["active"], (r.get("name") or "~" + r["mac"]).lower())  # noqa: E731
-    wireless.sort(key=sort)
-    wired.sort(key=sort)
-    return render_template("clients.html", wireless=wireless, wired=wired, nets=nets,
-                           online=sum(r["active"] for r in rows.values()), total=len(rows))
+        r["label"] = r.get("name") or r.get("hostName") or ""
+        r["ap"] = (r.get("apName") or "") if r["active"] and r.get("wireless") else ""
+        r["rssi"] = r.get("rssi") if r["active"] and r.get("wireless") else None
+        r["seen"] = int(time.time() * 1000) if r["active"] else (int(r.get("lastSeen") or 0) if (r.get("lastSeen") or 0) > 1e12 else 0)
+        r["search"] = " ".join(str(x or "") for x in (r["label"], r["mac"], r.get("ip"), r["vlan_name"], r["conn"],
+                                                      r["desc"], r.get("hostName"), r["ap"])).lower()
+        out.append(r)
+    out.sort(key=lambda r: (not r["active"], (r["label"] or "~" + r["mac"]).lower()))
+    return out
+
+
+def _filter_rows(rows, args):
+    q = (args.get("q") or "").lower().strip()
+    t = args.get("t") or ""
+    on = args.get("online") == "1"
+    return [r for r in rows if (not q or q in r["search"]) and (not on or r["active"])
+            and (t != "w" or r.get("wireless")) and (t != "b" or not r.get("wireless"))]
+
+
+EXPORT_FIELDS = ("name", "mac", "ip", "online", "connection", "vlan", "vlan_name", "conn", "ap", "rssi",
+                 "type", "own_key", "random_mac", "last_seen")
+
+
+def _export_rec(r):
+    return {"name": r["label"], "mac": r["mac"], "ip": r.get("ip") or "", "online": bool(r["active"]),
+            "connection": "wifi" if r.get("wireless") else "kabel", "vlan": r["vlan"] or "",
+            "vlan_name": r["vlan_name"], "conn": r["conn"], "ap": r["ap"],
+            "rssi": r["rssi"] if r["rssi"] is not None else "", "type": r["desc"],
+            "own_key": (r["key"] or {}).get("name", ""), "random_mac": bool(r["random"]),
+            "last_seen": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["seen"] / 1000)) if r["seen"] else ""}
+
+
+@app.get("/clients")
+@login_required
+@configured
+def all_clients():
+    try:
+        rows = client_rows()
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", error=e)
+    return render_template("clients.html", rows=rows, online=sum(r["active"] for r in rows), total=len(rows),
+                           nwifi=sum(1 for r in rows if r.get("wireless")))
+
+
+@app.get("/clients/export.<fmt>")
+@login_required
+@configured
+def clients_export(fmt):
+    if fmt not in ("json", "csv", "xml"):
+        abort(404)
+    recs = [_export_rec(r) for r in _filter_rows(client_rows(), request.args)]
+    fn = f"apparaten-{time.strftime('%Y%m%d-%H%M')}.{fmt}"
+    hdr = {"Content-Disposition": f"attachment; filename={fn}"}
+    if fmt == "json":
+        return Response(json.dumps(recs, indent=1, ensure_ascii=False), mimetype="application/json", headers=hdr)
+    if fmt == "csv":
+        import csv
+        import io
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=EXPORT_FIELDS, delimiter=";")
+        w.writeheader()
+        w.writerows({k: (str(v).lower() if isinstance(v, bool) else v) for k, v in r.items()} for r in recs)
+        return Response("\ufeff" + buf.getvalue(), mimetype="text/csv; charset=utf-8", headers=hdr)
+    from xml.sax.saxutils import escape
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>', f'<devices exported="{time.strftime("%Y-%m-%dT%H:%M:%S")}">']
+    for r in recs:
+        parts.append("  <device>" + "".join(
+            f"<{k}>{escape(str(v).lower() if isinstance(v, bool) else str(v))}</{k}>" for k, v in r.items()) + "</device>")
+    parts.append("</devices>")
+    return Response("\n".join(parts) + "\n", mimetype="application/xml", headers=hdr)
 
 
 def _drop_fixed_ip(sid, mac, net):

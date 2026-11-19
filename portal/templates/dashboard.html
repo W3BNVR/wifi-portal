@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block body %}
+<div id="dash">
+<header>
+  <h1>Dashboard</h1>
+  <span class="muted" id="upd">{% if cache_age is not none %}bijgewerkt {{ cache_age }} s geleden{% endif %} · ververst elke minuut</span>
+</header>
+{% if err %}<div class="flash err">Omada niet bereikbaar: {{ err }}</div>{% endif %}
+
+<div class="kpis">
+  <a class="kpi" href="{{ url_for('all_clients') }}"><span class="kl">Online</span><span class="kv">{{ online }}</span>
+    <span class="ks">📶 {{ wifi }} · 🔌 {{ wired }} · {{ total }} bekend</span></a>
+  <a class="kpi" href="{{ url_for('index') }}#koppelen"><span class="kl">Wacht op koppeling</span>
+    <span class="kv {{ 'acc' if pending }}">{{ pending }}</span><span class="ks">nieuwe sleutels zonder apparaat</span></a>
+  <a class="kpi" href="#waakhond"><span class="kl">Kritiek offline</span>
+    <span class="kv {{ 'err' if crit_off else 'ok' }}">{{ crit_off|length }}</span><span class="ks">van {{ crit|length }} bewaakt</span></a>
+  <a class="kpi" href="{{ url_for('maintenance') }}#signaal"><span class="kl">Zwak signaal</span>
+    <span class="kv {{ 'warn' if weak else 'ok' }}">{{ weak|length }}</span><span class="ks">onder {{ thr }} dBm</span></a>
+  <a class="kpi" href="{{ url_for('index') }}#gast"><span class="kl">Gasttoegang</span>
+    <span class="kv">{{ guests|length }}</span><span class="ks">{{ paused|length }} op internetpauze</span></a>
+  <a class="kpi" href="{{ url_for('logbook') }}"><span class="kl">Nieuw (24 uur)</span>
+    <span class="kv {{ 'acc' if new24 }}">{{ new24|length }}</span><span class="ks">{{ (new24[0].name or new24[0].hostname or new24[0].mac) if new24 else 'geen nieuwe apparaten' }}</span></a>
+</div>
+
+<div class="g2">
+  <section class="card">
+    <div class="ch">
+      <h2 id="ctitle">Online apparaten</h2>
+      <div class="seg sm">
+        <button type="button" data-m="n" class="on">Apparaten</button>{% if has_traffic %}<button type="button" data-m="t">Verkeer</button>{% endif %}
+      </div>
+      <div class="seg sm"><button type="button" data-r="24" class="on">24 uur</button><button type="button" data-r="7">7 dagen</button></div>
+    </div>
+    <div id="chart" class="chart"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+  <section class="card">
+    <h2>Per VLAN <span class="muted">· nu online</span></h2>
+    {% set vmax = (vlans|map(attribute='n')|max) if vlans else 1 %}
+    {% for v in vlans %}
+    <div class="bar"><div class="bl"><span>{{ v.name }}{% if v.vlan %} <span class="muted">{{ v.vlan }}</span>{% endif %}</span><strong>{{ v.n }}</strong></div>
+      <div class="bt"><i style="width:{{ (v.w / vmax * 100)|round(1) }}%" class="w"></i><i style="width:{{ ((v.n - v.w) / vmax * 100)|round(1) }}%" class="b"></i></div></div>
+    {% else %}<p class="muted">Geen gegevens.</p>{% endfor %}
+    <div class="legend"><span><i class="w"></i>draadloos</span><span><i class="b"></i>bekabeld</span></div>
+  </section>
+</div>
+
+<div class="g3">
+  <section class="card" id="waakhond">
+    <h2>🛡️ Waakhond</h2>
+    <table class="mt"><thead><tr><th>Naam</th><th>Status</th><th>Sinds</th></tr></thead><tbody>
+    {% for x in crit %}
+      <tr><td><a href="{{ url_for('client', mac=x.mac) }}">{{ x.name }}</a></td>
+        <td>{% if x.online %}<span class="pill on">● Online</span>{% else %}<span class="pill off">● Offline</span>{% endif %}</td>
+        <td class="muted">{{ ((x.since * 1000)|ago) if x.since and not x.online else '—' }}</td></tr>
+    {% else %}<tr><td colspan="3" class="muted">Nog geen kritieke apparaten. Zet de waakhond aan op de pagina van een apparaat.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+  <section class="card">
+    <h2>📶 Zwak signaal</h2>
+    <table class="mt"><thead><tr><th>Naam</th><th>AP</th><th class="r">Nu</th><th class="r">7 d</th></tr></thead><tbody>
+    {% for w in weak[:7] %}
+      <tr><td><a href="{{ url_for('client', mac=w.mac) }}">{{ w.name }}</a></td><td class="muted">{{ w.ap or '—' }}</td>
+        <td class="r {{ 'cerr' if w.rssi < -80 else 'cwarn' }}">{{ w.rssi }}</td><td class="r muted">{{ w.a7|round|int if w.a7 is not none else '—' }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Alle draadloze apparaten hebben een goed signaal.</td></tr>{% endfor %}
+    </tbody></table>
+    {% if weak|length > 7 %}<p class="muted"><a href="{{ url_for('maintenance') }}#signaal">en nog {{ weak|length - 7 }}…</a></p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>📡 Per toegangspunt</h2>
+    {% set amax = (aps|map(attribute='n')|max) if aps else 1 %}
+    {% for a in aps %}
+    <div class="bar"><div class="bl"><span>{{ a.name }}</span><strong>{{ a.n }}</strong></div>
+      <div class="bt"><i style="width:{{ (a.n / amax * 100)|round(1) }}%" class="w"></i></div>
+      <div class="muted bands">{% for b, n in a.b|dictsort %}{{ b }}: {{ n }}{{ ' · ' if not loop.last }}{% endfor %}</div></div>
+    {% else %}<p class="muted">Geen draadloze apparaten online.</p>{% endfor %}
+  </section>
+</div>
+
+<div class="g2">
+  <section class="card">
+    <h2>🕘 Recente gebeurtenissen <a class="more" href="{{ url_for('logbook') }}">logboek →</a></h2>
+    <table class="mt"><thead><tr><th>Wanneer</th><th>Apparaat</th><th>Gebeurtenis</th></tr></thead><tbody>
+    {% for e in evs %}
+      <tr><td class="muted nw">{{ when(e.ts) }}</td>
+        <td>{% if e.mac %}<a href="{{ url_for('client', mac=e.mac) }}">{{ e.who }}</a>{% else %}<span class="muted">portal</span>{% endif %}</td>
+        <td class="ev"><span>{{ e.icon }}</span> {{ e.detail }}</td></tr>
+    {% else %}<tr><td colspan="3" class="muted">Nog niets vastgelegd.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+  <section class="card">
+    <h2>{{ '⚡ Grootste verbruikers' if has_rate else '📊 Meeste verkeer' }} <span class="muted">· {{ 'nu' if has_rate else 'deze sessie' }}</span></h2>
+    <table class="mt"><thead><tr><th>Naam</th>{% if has_rate %}<th class="r">↓</th><th class="r">↑</th>{% else %}<th class="r">Totaal</th>{% endif %}</tr></thead><tbody>
+    {% for t in top %}
+      <tr><td><a href="{{ url_for('client', mac=t.mac) }}">{{ t.name }}</a></td>
+        {% if has_rate %}<td class="r num">{{ rate(t.down) }}</td><td class="r num muted">{{ rate(t.up) }}</td>
+        {% else %}<td class="r num">{{ t.tot|bytes }}</td>{% endif %}</tr>
+    {% else %}<tr><td colspan="3" class="muted">Geen verkeersgegevens van Omada.</td></tr>{% endfor %}
+    </tbody></table>
+    {% if new24 %}
+    <h2 style="margin-top:16px">🆕 Nieuw in 24 uur</h2>
+    <table class="mt"><tbody>
+    {% for d in new24[:5] %}
+      <tr><td><a href="{{ url_for('client', mac=d.mac) }}">{{ d.name or d.hostname or d.mac }}</a></td>
+        <td class="muted">{{ d.network or '' }}</td><td class="r muted nw">{{ when(d.first_seen) }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+    {% endif %}
+  </section>
+</div>
+<script type="application/json" id="sdata">{"24": {{ s24|tojson }}, "7": {{ s7|tojson }}}</script>
+</div>
+
+<style>
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(150px,45%),1fr)); gap:12px; margin-bottom:14px }
+  .kpi { display:flex; flex-direction:column; gap:2px; background:var(--card); border:1px solid var(--line); border-radius:12px;
+         padding:12px 14px; color:var(--ink); text-decoration:none; transition:border-color .15s }
+  .kpi:hover { border-color:var(--acc) }
+  .kl { font-size:13px; color:var(--mute) }
+  .kv { font-size:28px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums }
+  .kv.err, .cerr { color:var(--err) } .kv.warn, .cwarn { color:var(--warn) } .kv.ok { color:var(--ok) } .kv.acc { color:var(--acc) }
+  .ks { font-size:12px; color:var(--mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .g2 { display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,1fr); gap:14px }
+  .g3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px }
+  .g2 > .card, .g3 > .card { margin-bottom:14px }
+  @media (max-width:1100px) { .g3 { grid-template-columns:1fr 1fr } }
+  @media (max-width:900px) { .g2, .g3 { grid-template-columns:minmax(0,1fr) } }
+  h2 .more { float:right; font-size:13px; font-weight:400 }
+  .ch { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px }
+  .ch h2 { margin:0; margin-right:auto }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden }
+  .seg button { background:transparent; color:var(--mute); border-radius:0; padding:4px 10px; font-size:13px; font-weight:500 }
+  .seg button.on { background:var(--acc); color:var(--onacc) }
+  .chart { position:relative; height:240px }
+  .chart svg { width:100%; height:100%; display:block; overflow:visible }
+  .chart .grid line { stroke:var(--line) } .chart text { fill:var(--mute); font-size:11px }
+  .tip { position:absolute; pointer-events:none; background:var(--card); border:1px solid var(--line); border-radius:8px;
+         box-shadow:var(--shadow); padding:6px 9px; font-size:12px; white-space:nowrap; z-index:2 }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--mute); margin-top:6px; flex-wrap:wrap }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px }
+  .bar { margin:9px 0 } .bl { display:flex; justify-content:space-between; gap:8px; font-size:14px; margin-bottom:4px }
+  .bt { height:8px; border-radius:99px; background:var(--hover); display:flex; overflow:hidden }
+  .bt i { display:block; height:100% } i.w { background:var(--acc) } i.b { background:var(--mute); opacity:.6 }
+  .bands { font-size:12px; margin-top:3px }
+  table.mt { width:100%; border-collapse:collapse; font-size:14px }
+  .mt th { text-align:left; font-weight:500; color:var(--mute); font-size:13px; padding:6px 8px; border-bottom:1px solid var(--line) }
+  .mt td { padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top }
+  .mt tr:last-child td { border-bottom:0 }
+  .mt a { color:var(--ink); text-decoration:none; font-weight:500 } .mt a:hover { color:var(--acc) }
+  .mt .r { text-align:right; white-space:nowrap } .num { font-variant-numeric:tabular-nums }
+  .mt td.ev { overflow-wrap:anywhere } .nw { white-space:nowrap }
+  .pill { font-size:12px; white-space:nowrap } .pill.on { color:var(--ok) } .pill.off { color:var(--err) }
+</style>
+<script>
+(function(){
+  let R='24', M='n';
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function fmtRate(b){ b=b*8; const u=['bit/s','kbit/s','Mbit/s','Gbit/s']; let i=0; while(b>=1000&&i<3){b/=1000;i++;} return (i?b.toFixed(1):Math.round(b))+' '+u[i]; }
+  function draw(){
+    const el=document.getElementById('chart'); if(!el) return;
+    const all=JSON.parse(document.getElementById('sdata').textContent)[R]||[];
+    const S = M==='n'
+      ? [{n:'Totaal',i:1,c:css('--acc'),fill:true},{n:'Draadloos',i:2,c:css('--ok')},{n:'Bekabeld',i:3,c:css('--warn')}]
+      : [{n:'Download',i:4,c:css('--acc'),fill:true},{n:'Upload',i:5,c:css('--ok')}];
+    document.getElementById('ctitle').textContent = M==='n' ? 'Online apparaten' : 'Verkeer (gemiddelde doorvoer)';
+    document.getElementById('legend').innerHTML = S.map(s=>`<span><i style="background:${s.c}"></i>${s.n}</span>`).join('')
+      + (M==='n' && all.some(p=>p[1]===null) ? '<span>· vóór de eerste meting alleen draadloos (uit signaalmetingen)</span>' : '');
+    const pts=all.filter(p=>S.some(s=>p[s.i]!==null));
+    if(pts.length<2){ el.innerHTML='<p class="muted" style="padding:40px 0;text-align:center">Nog te weinig metingen. De portal meet elke 5 minuten; de grafiek vult zich vanzelf.</p>'; return; }
+    const W=el.clientWidth, H=el.clientHeight, L=M==='n'?34:70, B=22, T=8;
+    const t0=pts[0][0], t1=pts[pts.length-1][0];
+    let ymax=Math.max(1,...pts.flatMap(p=>S.map(s=>p[s.i]||0)));
+    const mag=Math.pow(10,Math.floor(Math.log10(ymax))), st=[1,2,2.5,5,10].map(x=>x*mag).find(x=>ymax/x<=5)||mag; ymax=Math.ceil(ymax/st)*st;
+    const x=t=>L+(t-t0)/(t1-t0||1)*(W-L-6), y=v=>T+(1-v/ymax)*(H-T-B);
+    let g='<g class="grid">';
+    for(let v=0; v<=ymax+1e-9; v+=st){ g+=`<line x1="${L}" x2="${W-6}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${M==='n'?v:fmtRate(v)}</text>`; }
+    // ticks op ronde uren (24 u) of om middernacht (7 dagen)
+    const hstep = R==='24' ? ((W-L)/((t1-t0)/3600) < 28 ? 3 : 2) : 24;
+    const d0=new Date(t0*1000); d0.setMinutes(0,0,0); if(R!=='24') d0.setHours(0);
+    for(let d=new Date(d0); d.getTime()/1000<=t1; d.setHours(d.getHours()+hstep)){
+      if(R==='24' && d.getHours()%hstep) { d.setHours(d.getHours()-d.getHours()%hstep); }
+      const t=d.getTime()/1000; if(t<t0) continue;
+      const lab = R==='24' ? d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString('nl-NL',{weekday:'short',day:'numeric'});
+      g+=`<line x1="${x(t)}" x2="${x(t)}" y1="${H-B}" y2="${H-B+4}"/><text x="${x(t)}" y="${H-5}" text-anchor="${R==='24'?'middle':'start'}">${R==='24'?lab:' '+lab}</text>`; }
+    g+='</g>';
+    for(const s of S){
+      let path='', area='', prev=null, seg=[];
+      const flush=()=>{ if(seg.length){ path+='M'+seg.map(p=>p.join(',')).join('L');
+        if(s.fill) area+=`M${seg[0][0]},${y(0)}L`+seg.map(p=>p.join(',')).join('L')+`L${seg[seg.length-1][0]},${y(0)}Z`; } seg=[]; };
+      for(const p of pts){ const v=p[s.i];
+        if(v===null || (prev && p[0]-prev>(R==='24'?1200:5400))) flush();
+        if(v!==null) seg.push([x(p[0]).toFixed(1), y(v).toFixed(1)]); prev=p[0]; }
+      flush();
+      if(area) g+=`<path d="${area}" fill="${s.c}" opacity=".12"/>`;
+      g+=`<path d="${path}" fill="none" stroke="${s.c}" stroke-width="${s.fill?2.2:1.6}" stroke-linejoin="round"/>`;
+    }
+    g+=`<line id="cx" y1="${T}" y2="${H-B}" stroke="${css('--mute')}" stroke-dasharray="3 3" style="display:none"/>`;
+    el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}</svg><div class="tip" style="display:none"></div>`;
+    const svg=el.querySelector('svg'), tip=el.querySelector('.tip'), cx=el.querySelector('#cx');
+    svg.onmousemove=ev=>{
+      const r=svg.getBoundingClientRect(), mx=ev.clientX-r.left; if(mx<L){ svg.onmouseleave(); return; }
+      const t=t0+(mx-L)/(W-L-6)*(t1-t0); let best=pts[0]; for(const p of pts) if(Math.abs(p[0]-t)<Math.abs(best[0]-t)) best=p;
+      cx.setAttribute('x1',x(best[0])); cx.setAttribute('x2',x(best[0])); cx.style.display='';
+      const d=new Date(best[0]*1000);
+      tip.innerHTML=`<strong>${d.toLocaleString('nl-NL',{weekday:'short',hour:'2-digit',minute:'2-digit'})}</strong><br>`+
+        S.filter(s=>best[s.i]!==null).map(s=>`<span style="color:${s.c}">●</span> ${s.n}: ${M==='n'?best[s.i]:fmtRate(best[s.i])}`).join('<br>');
+      tip.style.display=''; const tx=x(best[0])+12; tip.style.left=(tx+tip.offsetWidth>W ? x(best[0])-tip.offsetWidth-12 : tx)+'px'; tip.style.top='10px';
+    };
+    svg.onmouseleave=()=>{ tip.style.display='none'; cx.style.display='none'; };
+  }
+  function bind(){
+    document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ R=b.dataset.r; document.querySelectorAll('[data-r]').forEach(x=>x.classList.toggle('on',x===b)); draw(); });
+    document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{ M=b.dataset.m; document.querySelectorAll('[data-m]').forEach(x=>x.classList.toggle('on',x===b)); draw(); });
+    document.querySelectorAll('[data-r]').forEach(x=>x.classList.toggle('on',x.dataset.r===R));
+    document.querySelectorAll('[data-m]').forEach(x=>x.classList.toggle('on',x.dataset.m===M));
+    if(!document.querySelector(`[data-m="${M}"]`)) M='n';
+    draw();
+  }
+  bind();
+  let rt; window.addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(draw,150); });
+  new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  setInterval(async()=>{
+    if(document.hidden) return;
+    try{ const r=await fetch(location.pathname,{credentials:'same-origin'}); if(!r.ok||r.redirected) return;
+      const doc=new DOMParser().parseFromString(await r.text(),'text/html'), nd=doc.getElementById('dash');
+      if(nd){ document.getElementById('dash').innerHTML=nd.innerHTML; bind(); } }catch(e){}
+  },60000);
+})();
+</script>
+{% endblock %}

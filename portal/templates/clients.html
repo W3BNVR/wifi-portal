@@ -1,104 +1,124 @@
 {% extends "base.html" %}
-{% macro row(r) %}
-  <div class="row crow" data-on="{{ 1 if r.active else 0 }}"
-       data-s="{{ (r.name ~ ' ' ~ r.mac ~ ' ' ~ (r.ip or '') ~ ' ' ~ r.vlan_name ~ ' ' ~ r.conn ~ ' ' ~ r.desc ~ ' ' ~ (r.hostName or ''))|lower }}">
-    <div class="dev">
-      <span class="ico">{{ r.icon }}</span>
-      <div style="min-width:0;flex:1">
-        <div><span class="dot {{ 'on' if r.active }}"></span>
-          <a href="{{ url_for('client', mac=r.mac) }}"><strong>{{ r.name or r.hostName or 'Naamloos' }}</strong></a>
-          {% if r.key %}<span class="tag ok">eigen sleutel</span>{% endif %}
-          {% if r.only_db %}<span class="tag" title="Omada kent dit apparaat niet meer; de portal onthoudt het">alleen in portal</span>{% endif %}
-          {% if r.random %}<span class="tag warn" title="Willekeurig MAC-adres (privacy-functie van het apparaat)">privé-MAC</span>{% endif %}</div>
-        <div class="muted">{{ r.desc or 'Onbekend type' }}</div>
-        <div class="muted"><span class="mac">{{ r.mac }}</span> · {{ r.ip or '—' }}{{ ' · ' ~ r.conn if r.conn }}{{ ' · laatst ' ~ (r.lastSeen|ago) if not r.active and r.lastSeen }}</div>
-      </div>
-      <form method="post" action="{{ url_for('client_vlan') }}" class="vl"
-            data-mode="{{ r.mode }}" data-name="{{ r.name or r.mac }}" data-cur="{{ r.vlan or '' }}">
-        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mac" value="{{ r.mac }}">
-        <input type="hidden" name="back" value="{{ url_for('all_clients') }}">
-        <select name="vlan" {{ 'disabled' if not r.mode }} title="{{ r.why }}" onchange="askVlan(this)">
-          {% if not r.vlan %}<option value="">—</option>{% endif %}
-          {% for n in nets %}<option value="{{ n.vlan }}" {{ 'selected' if n.vlan == r.vlan }}>{{ n.name }}</option>{% endfor %}
-        </select>
-        {% if not r.mode and r.why %}<div class="muted small">{{ r.why }}</div>{% endif %}
-      </form>
-    </div>
-  </div>
-{% endmacro %}
 {% block body %}
 <header>
   <h1>Alle apparaten</h1>
-  <nav><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('index') }}">Sleutels</a><a href="{{ url_for('maintenance') }}">Onderhoud</a><a href="{{ url_for('acl_page') }}">ACL</a></nav>
 </header>
-<div class="inline" style="margin-bottom:12px">
-  <input type="text" id="q" placeholder="Zoek op naam, type, MAC, IP, VLAN…" oninput="filt()" autofocus>
-  <label class="muted"><input type="checkbox" id="on" onchange="filt()" checked> alleen online</label>
+<div class="toolbar">
+  <input type="text" id="q" placeholder="Zoek op naam, type, MAC, IP, VLAN, AP…" oninput="filt()" autofocus>
+  <div class="seg" id="seg">
+    <button type="button" data-t="" class="on">Alle</button><button type="button" data-t="w">📶 Draadloos</button><button type="button" data-t="b">🔌 Bekabeld</button>
+  </div>
+  <label class="muted chk"><input type="checkbox" id="on" onchange="filt()" checked> alleen online</label>
+  <details class="dd right exp"><summary class="btn2">⬇️ Exporteren <span class="car">▼</span></summary><div class="ddm" style="min-width:200px">
+    <a href="#" data-f="csv"><span class="ic">📄</span><span>CSV<small>Excel, ; gescheiden</small></span></a>
+    <a href="#" data-f="json"><span class="ic">🧾</span><span>JSON</span></a>
+    <a href="#" data-f="xml"><span class="ic">🗂️</span><span>XML</span></a>
+    <hr><span class="muted" style="padding:2px 10px 6px">Exporteert wat nu gefilterd zichtbaar is.</span>
+  </div></details>
 </div>
-<p class="muted">{{ total }} bekend · {{ online }} online</p>
+<p class="muted" id="sum">{{ total }} bekend · {{ online }} online · {{ nwifi }} draadloos · {{ total - nwifi }} bekabeld</p>
 
-<section class="card">
-  <h2>📶 Draadloos <span class="muted cnt"></span>
-    <span class="muted small" style="float:right"><a href="#" onclick="openAll(true, 'w');return false">alles open</a> ·
-      <a href="#" onclick="openAll(false, 'w');return false">alles dicht</a></span></h2>
-  {% for grp in wireless|groupby('vlan_sort') %}
-  <details class="vgrp" data-g="w{{ grp.grouper }}" open ontoggle="saveOpen()">
-    <summary><strong>{{ grp.list[0].vlan_name or 'Onbekend VLAN' }}</strong>{% if grp.grouper != 9999 %} <span class="muted">VLAN {{ grp.grouper }}</span>{% endif %}
-      <span class="muted gcnt"></span></summary>
-    <div class="rows2">{% for r in grp.list %}{{ row(r) }}{% endfor %}</div>
-  </details>
-  {% else %}<p class="muted">Geen.</p>{% endfor %}
-</section>
-<section class="card">
-  <h2>🔌 Bekabeld <span class="muted cnt"></span>
-    <span class="muted small" style="float:right"><a href="#" onclick="openAll(true, 'b');return false">alles open</a> ·
-      <a href="#" onclick="openAll(false, 'b');return false">alles dicht</a></span></h2>
-  {% for grp in wired|groupby('vlan_sort') %}
-  <details class="vgrp" data-g="b{{ grp.grouper }}" open ontoggle="saveOpen()">
-    <summary><strong>{{ grp.list[0].vlan_name or 'Onbekend VLAN' }}</strong>{% if grp.grouper != 9999 %} <span class="muted">VLAN {{ grp.grouper }}</span>{% endif %}
-      <span class="muted gcnt"></span></summary>
-    <div class="rows2">{% for r in grp.list %}{{ row(r) }}{% endfor %}</div>
-  </details>
-  {% else %}<p class="muted">Geen.</p>{% endfor %}
+<section class="card tcard">
+  <table class="dt" id="dt">
+    <thead><tr>
+      <th data-k="name" class="sorted">Naam</th>
+      <th data-k="type" class="c-type">Type</th>
+      <th data-k="ip" class="c-ip">IP</th>
+      <th data-k="mac" class="c-mac">MAC</th>
+      <th data-k="vlan">VLAN</th>
+      <th data-k="conn" class="c-conn">Verbinding</th>
+      <th data-k="rssi" class="c-sig">Signaal</th>
+      <th data-k="seen">Status</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr data-on="{{ 1 if r.active else 0 }}" data-t="{{ 'w' if r.wireless else 'b' }}" data-s="{{ r.search }}"
+        data-name="{{ (r.label or '~' ~ r.mac)|lower }}" data-type="{{ r.desc|lower }}" data-ip="{{ r.ip or '' }}" data-mac="{{ r.mac }}"
+        data-vlan="{{ r.vlan or 9999 }}" data-conn="{{ r.conn|lower }}" data-rssi="{{ r.rssi if r.rssi is not none else -999 }}" data-seen="{{ r.seen }}"
+        onclick="if(!event.target.closest('a'))location.href=this.querySelector('a').href">
+      <td class="nm"><span class="ico sm">{{ r.icon }}</span>
+        <a href="{{ url_for('client', mac=r.mac) }}">{{ r.label or 'Naamloos' }}</a>
+        {% if r.key %}<span class="tag ok" title="Eigen sleutel: {{ r.key.name }}">🔑</span>{% endif %}
+        {% if r.random %}<span class="tag warn" title="Willekeurig MAC-adres (privacy-functie van het apparaat)">privé</span>{% endif %}
+        {% if r.only_db %}<span class="tag" title="Omada kent dit apparaat niet meer; de portal onthoudt het">portal</span>{% endif %}</td>
+      <td class="c-type muted">{{ r.desc or '—' }}</td>
+      <td class="c-ip num">{{ r.ip or '—' }}</td>
+      <td class="c-mac mac muted">{{ r.mac }}</td>
+      <td>{% if r.vlan %}<span class="vtag">{{ r.vlan_name }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="c-conn muted">{{ (r.wireless and '📶 ' or '🔌 ') ~ (r.conn or '—') }}{{ ' · ' ~ r.ap if r.ap }}</td>
+      <td class="c-sig">{% if r.rssi is not none %}<span class="sig {{ 'bad' if r.rssi < -75 else ('mid' if r.rssi < -67 else 'good') }}" title="{{ r.rssi }} dBm"><i></i><i></i><i></i><i></i></span> <span class="muted">{{ r.rssi }}</span>{% endif %}</td>
+      <td class="st">{% if r.active %}<span class="pill on">● Online</span>{% else %}<span class="pill">○ {{ (r.lastSeen|ago) if (r.lastSeen or 0) > 1000000000000 else 'Offline' }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" id="none" style="display:none;padding:14px">Geen apparaten die aan het filter voldoen.</p>
 </section>
 
+<style>
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px }
+  .toolbar #q { flex:1 1 260px }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden }
+  .seg button { background:transparent; color:var(--mute); border-radius:0; padding:8px 12px; font-weight:500 }
+  .seg button.on { background:var(--acc); color:var(--onacc) }
+  .chk { display:flex; align-items:center; gap:6px; white-space:nowrap }
+  .btn2 { border:1px solid var(--line); background:var(--card); color:var(--ink) !important; padding:8px 12px !important }
+  .tcard { padding:0; overflow:auto }
+  table.dt { width:100%; border-collapse:collapse; font-size:14px }
+  .dt th { position:sticky; top:0; background:var(--card); text-align:left; font-weight:500; color:var(--mute); font-size:13px;
+           padding:11px 12px; border-bottom:1px solid var(--line); cursor:pointer; user-select:none; white-space:nowrap }
+  .dt th:hover { color:var(--ink) }
+  .dt th.sorted::after { content:" ▲"; font-size:10px } .dt th.sorted.desc::after { content:" ▼" }
+  .dt td { padding:8px 12px; border-bottom:1px solid var(--line); white-space:nowrap; vertical-align:middle }
+  .dt tbody tr { cursor:pointer } .dt tbody tr:hover { background:var(--hover) }
+  .dt tbody tr:last-child td { border-bottom:0 }
+  .dt td.nm { font-weight:500; max-width:320px; overflow:hidden; text-overflow:ellipsis }
+  .dt td.nm a { color:var(--ink); text-decoration:none } .dt td.nm a:hover { color:var(--acc) }
+  .dt .c-type, .dt .c-conn { max-width:220px; overflow:hidden; text-overflow:ellipsis }
+  .dt .num { font-variant-numeric:tabular-nums }
+  .ico.sm { font-size:17px; width:24px; display:inline-block; vertical-align:-2px }
+  .dt .tag { font-size:11px; padding:0 6px; margin-left:4px }
+  .vtag { font-size:12px; padding:2px 8px; border-radius:6px; background:var(--hover); border:1px solid var(--line) }
+  .pill { font-size:12px; color:var(--mute) } .pill.on { color:var(--ok) }
+  .sig { display:inline-flex; gap:2px; align-items:flex-end; height:12px; vertical-align:-1px }
+  .sig i { width:3px; background:var(--line); border-radius:1px } .sig i:nth-child(1){height:4px} .sig i:nth-child(2){height:7px} .sig i:nth-child(3){height:10px} .sig i:nth-child(4){height:12px}
+  .sig.good i { background:var(--ok) } .sig.mid i:nth-child(-n+3) { background:var(--warn) } .sig.bad i:nth-child(-n+2) { background:var(--err) }
+  @media (max-width:1250px) { .dt .c-mac { display:none } }
+  @media (max-width:1050px) { .dt .c-type, .dt .c-sig { display:none } }
+  @media (max-width:760px) { .dt .c-conn, .dt .c-ip { display:none } .dt td.nm { max-width:180px } }
+</style>
 <script>
+let T='', SK='name', SD=1;
+try{ const s=JSON.parse(localStorage.getItem('wp-clients')||'{}'); if(s.t!==undefined)T=s.t; if(s.k){SK=s.k;SD=s.d||1;}
+  if(s.on===false) document.getElementById('on').checked=false; }catch(e){}
+const tb=document.querySelector('#dt tbody'), rows=[...tb.rows];
+function save(){ try{ localStorage.setItem('wp-clients', JSON.stringify({t:T,k:SK,d:SD,on:document.getElementById('on').checked})); }catch(e){} }
 function filt(){
   const q=document.getElementById('q').value.toLowerCase().trim(), on=document.getElementById('on').checked;
-  document.querySelectorAll('section.card').forEach(sec=>{
-    let n=0;
-    sec.querySelectorAll('.crow').forEach(r=>{
-      const show=(!q || r.dataset.s.includes(q)) && (!on || r.dataset.on==='1');
-      r.style.display=show?'':'none'; if(show) n++;
-    });
-    const c=sec.querySelector('.cnt'); if(c) c.textContent='· '+n;
+  let n=0;
+  rows.forEach(r=>{ const show=(!q||r.dataset.s.includes(q))&&(!on||r.dataset.on==='1')&&(!T||r.dataset.t===T);
+    r.style.display=show?'':'none'; if(show)n++; });
+  document.getElementById('none').style.display=n?'none':'';
+  document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on', b.dataset.t===T));
+  const p=new URLSearchParams(); if(q)p.set('q',q); if(on)p.set('online','1'); if(T)p.set('t',T);
+  document.querySelectorAll('.exp a[data-f]').forEach(a=>a.href='{{ url_for("clients_export", fmt="X") }}'.replace('export.X','export.'+a.dataset.f)+(p.toString()?'?'+p:''));
+  save();
+}
+function ipnum(v){ return v ? v.split('.').reduce((a,b)=>a*256+(+b||0),0) : 1e12; }
+function sortBy(k, keep){
+  if(!keep){ SD = (SK===k) ? -SD : (k==='seen'||k==='rssi' ? -1 : 1); SK=k; }
+  const num = ['vlan','rssi','seen'].includes(SK);
+  rows.sort((a,b)=>{
+    let x=a.dataset[SK], y=b.dataset[SK];
+    if(SK==='ip'){ x=ipnum(x); y=ipnum(y); } else if(num){ x=+x; y=+y; }
+    return (x<y?-1:x>y?1:(a.dataset.name<b.dataset.name?-1:1))*SD;
   });
-  document.querySelectorAll('details.vgrp').forEach(d=>{
-    const n=[...d.querySelectorAll('.crow')].filter(r=>r.style.display!=='none').length;
-    d.querySelector('.gcnt').textContent='· '+n;
-    d.style.display=n?'':'none';
-    if(q && n) d.open=true;  // bij zoeken: groepen met treffers openklappen
-  });
+  rows.forEach(r=>tb.appendChild(r));
+  document.querySelectorAll('#dt th').forEach(th=>{ th.classList.toggle('sorted', th.dataset.k===SK); th.classList.toggle('desc', th.dataset.k===SK && SD<0); });
+  save();
 }
-function saveOpen(){
-  if(document.getElementById('q').value) return;
-  const closed=[...document.querySelectorAll('details.vgrp')].filter(d=>!d.open).map(d=>d.dataset.g);
-  try{ localStorage.setItem('wp-closed', JSON.stringify(closed)); }catch(e){}
-}
-function openAll(v, p){ document.querySelectorAll('details.vgrp').forEach(d=>{ if(!p || d.dataset.g[0]===p) d.open=v; }); saveOpen(); }
-try{
-  const closed=JSON.parse(localStorage.getItem('wp-closed')||'[]');
-  document.querySelectorAll('details.vgrp').forEach(d=>{ if(closed.includes(d.dataset.g)) d.open=false; });
-}catch(e){}
-function askVlan(sel){
-  const f=sel.form, m=f.dataset.mode, t=sel.options[sel.selectedIndex].text, nm=f.dataset.name;
-  const msg = m==='port'
-    ? `De hele switchpoort van "${nm}" naar ${t} zetten? Het apparaat krijgt daarna een IP in dat netwerk.`
-    : m==='ownkey'
-    ? `"${nm}" gebruikt een gedeelde sleutel. Er wordt een eigen sleutel in ${t} gemaakt, die je daarna op het apparaat moet invoeren. Doorgaan?`
-    : `"${nm}" naar ${t} verplaatsen? Het apparaat verbindt kort opnieuw.`;
-  if(confirm(msg)) f.submit(); else sel.value=f.dataset.cur;
-}
-filt();
+document.querySelectorAll('#dt th').forEach(th=>th.onclick=()=>sortBy(th.dataset.k));
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{ T=b.dataset.t; filt(); });
+sortBy(SK, true); filt();
 </script>
 {% endblock %}

@@ -36,6 +36,8 @@
   .brand { display:flex; align-items:center; gap:8px; font-weight:600; color:var(--ink); text-decoration:none; margin-right:14px; white-space:nowrap }
   .brand svg { color:var(--acc) }
   .dd { position:relative }
+  .topl { padding:7px 10px; border-radius:8px; color:var(--mute); text-decoration:none; white-space:nowrap }
+  .topl:hover { background:var(--hover); color:var(--ink) } .topl.on { color:var(--ink); font-weight:600 }
   .dd > summary { list-style:none; cursor:pointer; padding:7px 10px; border-radius:8px; color:var(--mute);
                   display:flex; align-items:center; gap:5px; white-space:nowrap; user-select:none }
   .dd > summary::-webkit-details-marker { display:none }
@@ -131,9 +133,10 @@
 {% set ep = request.endpoint or '' %}
 {% set grp = 'keys' if ep in ('index','key','shared','guest_card') else ('dev' if ep in ('all_clients','client','logbook') else ('net' if ep in ('acl_page','maintenance') else ('sys' if ep in ('setup',) else ''))) %}
 <nav class="top"><div class="in">
-  <a class="brand" href="{{ url_for('index') }}">
+  <a class="brand" href="{{ url_for('dashboard') }}">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5 12.6a10 10 0 0 1 14 0"/><path d="M8.5 16.3a5 5 0 0 1 7 0"/><circle cx="12" cy="19.6" r="1.2" fill="currentColor"/></svg>
     Wifi-portal</a>
+  <a class="topl {{ 'on' if ep == 'dashboard' }}" href="{{ url_for('dashboard') }}">Dashboard</a>
   <details class="dd {{ 'on' if grp == 'keys' }}"><summary>Sleutels <span class="car">▼</span></summary><div class="ddm">
     <a href="{{ url_for('index') }}" class="{{ 'cur' if ep == 'index' }}"><span class="ic">🔑</span><span>Overzicht<small>sleutels per VLAN</small></span></a>
     <a href="{{ url_for('index') }}#nieuw"><span class="ic">➕</span><span>Nieuw apparaat<small>sleutel + QR-code</small></span></a>
@@ -142,7 +145,7 @@
   </div></details>
   <details class="dd {{ 'on' if grp == 'dev' }}"><summary>Apparaten <span class="car">▼</span></summary><div class="ddm">
     <a href="{{ url_for('all_clients') }}" class="{{ 'cur' if ep == 'all_clients' }}"><span class="ic">📋</span><span>Alle apparaten<small>draadloos en bekabeld</small></span></a>
-    <a href="{{ url_for('index') }}#waakhond"><span class="ic">🛡️</span><span>Waakhond<small>kritieke apparaten</small></span></a>
+    <a href="{{ url_for('dashboard') }}#waakhond"><span class="ic">🛡️</span><span>Waakhond<small>kritieke apparaten</small></span></a>
     <a href="{{ url_for('logbook') }}" class="{{ 'cur' if ep == 'logbook' }}"><span class="ic">🕘</span><span>Logboek</span></a>
   </div></details>
   <details class="dd {{ 'on' if grp == 'net' }}"><summary>Netwerk <span class="car">▼</span></summary><div class="ddm">
@@ -155,7 +158,8 @@
   </div></details>
   <details class="dd {{ 'on' if grp == 'sys' }}"><summary>Systeem <span class="car">▼</span></summary><div class="ddm">
     <a href="{{ url_for('setup') }}" class="{{ 'cur' if ep == 'setup' }}"><span class="ic">⚙️</span><span>Instellingen<small>site, profiel, API-token</small></span></a>
-    <a href="{{ url_for('export') }}"><span class="ic">⬇️</span><span>Inventaris exporteren</span></a>
+    <a href="{{ url_for('export') }}"><span class="ic">⬇️</span><span>Inventaris + logboek<small>volledige JSON-export</small></span></a>
+    <a href="{{ url_for('all_clients') }}"><span class="ic">📤</span><span>Apparatenlijst<small>CSV, JSON of XML</small></span></a>
     <hr>
     <a href="{{ url_for('logout') }}"><span class="ic">🚪</span><span>Uitloggen</span></a>
   </div></details>
