@@ -557,9 +557,13 @@ def maintenance():
             if act == "settings":
                 cfg_set(vlan_rules=request.form.get("vlan_rules", "")[:4000],
                         signal_threshold=int(request.form.get("signal_threshold") or -72),
-                        cleanup_days=max(1, int(request.form.get("cleanup_days") or 30)),
-                        backup_keep=max(1, int(request.form.get("backup_keep") or 14)))
+                        cleanup_days=max(1, int(request.form.get("cleanup_days") or 30)))
                 flash("Instellingen opgeslagen", "ok")
+            elif act == "retention":
+                keep = max(1, min(3650, int(request.form.get("backup_keep") or 14)))
+                cfg_set(backup_keep=keep)
+                n = prune_backups()
+                flash(f"Backups worden {keep} dagen bewaard" + (f"; {n} oudere backup(s) verwijderd" if n else ""), "ok")
             elif act == "cleanup":
                 c, sid, pid, prof, *_ = A.context()
                 n = 0
@@ -579,10 +583,34 @@ def maintenance():
                 path = make_backup()
                 flash(f"Backup gemaakt: {os.path.basename(path)}", "ok")
             elif act == "restore":
-                flash(restore_backup(request.form["file"], request.form.getlist("part")), "ok")
+                parts = request.form.getlist("part")
+                if not parts:
+                    raise OmadaError("Kies minstens één onderdeel om te herstellen")
+                flash(restore_backup(request.form["file"], parts), "ok")
+            elif act == "upload":
+                f = request.files.get("backup")
+                if not f or not f.filename:
+                    raise OmadaError("Kies een backupbestand")
+                try:
+                    data = json.loads(f.read().decode("utf-8"))
+                except ValueError:
+                    raise OmadaError("Dit is geen geldig backupbestand (geen JSON)")
+                if not isinstance(data, dict) or "ppsk" not in data or "version" not in data:
+                    raise OmadaError("Dit is geen backup van de wifi-portal")
+                os.makedirs(BACKUP_DIR, exist_ok=True)
+                name = time.strftime("wifi-portal-upload-%Y%m%d-%H%M%S.json")
+                with open(os.path.join(BACKUP_DIR, name), "w") as out:
+                    json.dump(data, out, indent=1)
+                os.chmod(os.path.join(BACKUP_DIR, name), 0o600)
+                parts = request.form.getlist("part")
+                if parts:
+                    flash(restore_backup(name, parts), "ok")
+                else:
+                    flash(f"Backup ingelezen als {name}; kies hieronder wat je wilt herstellen", "ok")
         except Exception as e:  # noqa: BLE001
             flash(f"Mislukt: {e}", "err")
-        return redirect(url_for("maintenance") + "#" + (request.form.get("action") or ""))
+        anchor = request.form.get("action") or ""
+        return redirect(url_for("maintenance") + "#" + ("backup" if anchor in ("retention", "restore", "upload") else anchor))
 
     try:
         c, sid, pid, prof, nets_, vname, st = A.context()
@@ -652,7 +680,7 @@ def list_backups():
     for f in sorted(os.listdir(BACKUP_DIR), reverse=True):
         if f.startswith("wifi-portal-") and f.endswith(".json"):
             p = os.path.join(BACKUP_DIR, f)
-            out.append({"file": f, "size": os.path.getsize(p), "ts": os.path.getmtime(p)})
+            out.append({"file": f, "size": os.path.getsize(p), "ts": os.path.getmtime(p), "upload": "-upload-" in f})
     return out
 
 
@@ -676,13 +704,25 @@ def make_backup():
     os.chmod(path, 0o600)
     if EXTRA_BACKUP_DIR and os.path.isdir(EXTRA_BACKUP_DIR):
         shutil.copy2(path, os.path.join(EXTRA_BACKUP_DIR, name))
-    keep = int(cfg_get("backup_keep", 14))
-    for d in [BACKUP_DIR] + ([EXTRA_BACKUP_DIR] if EXTRA_BACKUP_DIR and os.path.isdir(EXTRA_BACKUP_DIR) else []):
-        for f in os.listdir(d):
-            p = os.path.join(d, f)
-            if f.startswith("wifi-portal-") and f.endswith(".json") and time.time() - os.path.getmtime(p) > keep * 86400:
-                os.remove(p)
+    prune_backups()
     return path
+
+
+def prune_backups():
+    """Backups ouder dan de bewaartermijn weg (de nieuwste blijft altijd staan)."""
+    keep = int(cfg_get("backup_keep", 14))
+    n = 0
+    for d in [BACKUP_DIR] + ([EXTRA_BACKUP_DIR] if EXTRA_BACKUP_DIR and os.path.isdir(EXTRA_BACKUP_DIR) else []):
+        if not os.path.isdir(d):
+            continue
+        files = sorted((f for f in os.listdir(d) if f.startswith("wifi-portal-") and f.endswith(".json")),
+                       key=lambda f: os.path.getmtime(os.path.join(d, f)))
+        for f in files[:-1]:
+            p = os.path.join(d, f)
+            if time.time() - os.path.getmtime(p) > keep * 86400:
+                os.remove(p)
+                n += 1
+    return n
 
 
 def _backup_if_due():

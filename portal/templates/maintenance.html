@@ -51,24 +51,55 @@
 
 <section class="card" id="backup">
   <h2>Backup</h2>
-  <form method="post" class="inline">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="backup">
-    <button>Nu backup maken</button>
-    <span class="muted">Elke nacht om 03:00 automatisch, {{ keep }} dagen bewaard{{ ', ook in ' ~ extra_dir if extra_dir }}.</span>
-  </form>
+  <div class="inline" style="justify-content:space-between">
+    <form method="post" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="backup">
+      <button>Nu backup maken</button>
+    </form>
+    <form method="post" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="retention">
+      <label class="muted">Bewaren <input type="number" name="backup_keep" value="{{ keep }}" min="1" max="3650" style="width:80px"> dagen</label>
+      <button class="ghost" style="color:var(--acc)">Opslaan</button>
+    </form>
+  </div>
+  <p class="muted">Elke nacht om 03:00 automatisch{{ ', ook in ' ~ extra_dir if extra_dir }}. Backups ouder dan {{ keep }} dagen
+    worden opgeruimd; de nieuwste blijft altijd staan.</p>
+
+  {% macro parts() %}
+    <label><input type="checkbox" name="part" value="names" checked> Namen terugzetten in Omada (alleen waar Omada de naam kwijt is)</label>
+    <label><input type="checkbox" name="part" value="keys" checked> Ontbrekende eigen sleutels terugzetten (gedeelde sleutels nooit)</label>
+    <label><input type="checkbox" name="part" value="overrides" checked> Notities, iconen, waakhond en pauze-instellingen</label>
+    <label><input type="checkbox" name="part" value="acl"> ACL-instellingen (daarna zelf toepassen op de ACL-pagina)</label>
+  {% endmacro %}
+
   {% for b in backups[:30] %}
-  <details class="row"><summary><strong>{{ b.file }}</strong> <span class="muted">· {{ (b.size / 1024)|round(1) }} kB</span></summary>
-    <form method="post" style="display:grid;gap:4px;margin-top:6px" onsubmit="return confirm('Gekozen onderdelen terugzetten uit {{ b.file }}?')">
+  <div class="row">
+    <div class="inline">
+      <span style="flex:1"><strong>{{ (b.ts * 1000)|ago }}</strong>
+        <span class="muted">· {{ (b.size / 1024)|round(1) }} kB{{ ' · ingelezen bestand' if b.upload }}</span></span>
+      <a href="{{ url_for('backup_download', name=b.file) }}">Downloaden</a>
+      <button type="button" onclick="const d=document.getElementById('r{{ loop.index }}'); d.style.display=d.style.display==='none'?'grid':'none'">Herstellen…</button>
+    </div>
+    <form method="post" id="r{{ loop.index }}" style="display:none;gap:4px;margin-top:6px"
+          onsubmit="return confirm('Gekozen onderdelen terugzetten uit de backup van {{ (b.ts * 1000)|ago }}?')">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="restore"><input type="hidden" name="file" value="{{ b.file }}">
-      <label><input type="checkbox" name="part" value="names" checked> Namen terugzetten in Omada (alleen waar Omada de naam kwijt is)</label>
-      <label><input type="checkbox" name="part" value="keys"> Ontbrekende eigen sleutels terugzetten (gedeelde sleutels nooit)</label>
-      <label><input type="checkbox" name="part" value="overrides"> Notities, iconen, waakhond en pauze-instellingen</label>
-      <label><input type="checkbox" name="part" value="acl"> ACL-instellingen (daarna zelf toepassen)</label>
-      <div class="inline"><button>Terugzetten</button><a href="{{ url_for('backup_download', name=b.file) }}">Downloaden</a></div>
+      {{ parts() }}
+      <div><button>Nu herstellen</button></div>
+    </form>
+  </div>
+  {% else %}<p class="muted">Nog geen backups. Maak er nu een met de knop hierboven.</p>{% endfor %}
+
+  <details style="margin-top:10px"><summary><strong>Herstellen uit een bestand</strong> <span class="muted">· bv. na een herinstallatie</span></summary>
+    <form method="post" enctype="multipart/form-data" style="display:grid;gap:4px;margin-top:6px"
+          onsubmit="return confirm('Backupbestand inlezen en de gekozen onderdelen terugzetten?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="upload">
+      <input type="file" name="backup" accept=".json,application/json" required>
+      {{ parts() }}
+      <div><button>Inlezen en herstellen</button></div>
     </form>
   </details>
-  {% else %}<p class="muted">Nog geen backups.</p>{% endfor %}
-  <p class="muted">Een backup bevat ook de wifi-wachtwoorden van alle sleutels; bewaar downloads zorgvuldig.</p>
+  <p class="muted">Herstellen voegt alleen toe wat ontbreekt of kwijt is; bestaande sleutels en namen worden niet overschreven.
+    Een backup bevat ook de wifi-wachtwoorden van alle sleutels; bewaar downloads zorgvuldig.</p>
 </section>
 
 <section class="card" id="settings">
@@ -82,7 +113,6 @@
     <div class="inline">
       <label>Zwak signaal onder <input type="number" name="signal_threshold" value="{{ thr }}" min="-95" max="-40" style="width:80px"> dBm</label>
       <label>Opruimen na <input type="number" name="cleanup_days" value="{{ days }}" min="1" style="width:80px"> dagen</label>
-      <label>Backups bewaren <input type="number" name="backup_keep" value="{{ keep }}" min="1" style="width:80px"> dagen</label>
     </div>
     <div><button>Opslaan</button></div>
   </form>
