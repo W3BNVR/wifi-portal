@@ -5,21 +5,10 @@
   <nav><a href="{{ url_for('all_clients') }}">Alle apparaten</a><a href="{{ url_for('logbook') }}">Logboek</a><a href="{{ url_for('maintenance') }}">Onderhoud</a><a href="{{ url_for('acl_page') }}">ACL</a><a href="{{ url_for('setup') }}">Instellingen</a><a href="{{ url_for('logout') }}">Uitloggen</a></nav>
 </header>
 
-<section class="card">
-  <h2>Nieuw apparaat</h2>
-  <form method="post" action="{{ url_for('new_key') }}" class="inline">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <input type="text" name="name" placeholder="Naam, bv. IoT - Wasmachine" maxlength="64" required>
-    <button>Sleutel maken</button>
-  </form>
-  <p class="muted">De sleutel werkt meteen, in <strong>{{ guest }}</strong>. Verbind het apparaat en koppel het hieronder;
-    pas dan hoort de sleutel bij precies één apparaat. Niet gekoppeld binnen {{ '%g' % phours }} uur? Dan vervalt hij vanzelf.</p>
-</section>
-
-{% include "_index_extra.html" %}
-
+<div class="cols">
+<div class="main">
 {% if pending %}
-<section class="card">
+<section class="card" id="koppelen">
   <h2>Wacht op koppeling <span class="muted">· {{ pending|length }}</span></h2>
   {% for e in pending %}
   <div class="row">
@@ -121,4 +110,20 @@ try {
   <p class="muted">Deze sleutels werken op elk apparaat dat ze kent. De portal wijzigt of verwijdert gedeelde sleutels nooit; via “Apparaten…” geef je een gebruiker een eigen sleutel.</p>
 </section>
 {% endif %}
+</div>
+<aside class="side">
+<section class="card" id="nieuw">
+  <h2>Nieuw apparaat</h2>
+  <form method="post" action="{{ url_for('new_key') }}" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="text" name="name" placeholder="Naam, bv. IoT - Wasmachine" maxlength="64" required>
+    <button>Sleutel maken</button>
+  </form>
+  <p class="muted">De sleutel werkt meteen, in <strong>{{ guest }}</strong>. Verbind het apparaat en koppel het bij “Wacht op koppeling”;
+    pas dan hoort de sleutel bij precies één apparaat. Niet gekoppeld binnen {{ '%g' % phours }} uur? Dan vervalt hij vanzelf.</p>
+</section>
+
+{% include "_index_extra.html" %}
+</aside>
+</div>
 {% endblock %}

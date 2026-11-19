@@ -45,7 +45,7 @@
   <details class="vgrp" data-g="w{{ grp.grouper }}" open ontoggle="saveOpen()">
     <summary><strong>{{ grp.list[0].vlan_name or 'Onbekend VLAN' }}</strong>{% if grp.grouper != 9999 %} <span class="muted">VLAN {{ grp.grouper }}</span>{% endif %}
       <span class="muted gcnt"></span></summary>
-    {% for r in grp.list %}{{ row(r) }}{% endfor %}
+    <div class="rows2">{% for r in grp.list %}{{ row(r) }}{% endfor %}</div>
   </details>
   {% else %}<p class="muted">Geen.</p>{% endfor %}
 </section>
@@ -57,7 +57,7 @@
   <details class="vgrp" data-g="b{{ grp.grouper }}" open ontoggle="saveOpen()">
     <summary><strong>{{ grp.list[0].vlan_name or 'Onbekend VLAN' }}</strong>{% if grp.grouper != 9999 %} <span class="muted">VLAN {{ grp.grouper }}</span>{% endif %}
       <span class="muted gcnt"></span></summary>
-    {% for r in grp.list %}{{ row(r) }}{% endfor %}
+    <div class="rows2">{% for r in grp.list %}{{ row(r) }}{% endfor %}</div>
   </details>
   {% else %}<p class="muted">Geen.</p>{% endfor %}
 </section>
