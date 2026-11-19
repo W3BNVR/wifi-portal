@@ -51,19 +51,24 @@
 
 <section class="card" id="backup">
   <h2>Backup</h2>
-  <div class="inline" style="justify-content:space-between">
-    <form method="post" class="inline">
-      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="backup">
-      <button>Nu backup maken</button>
-    </form>
-    <form method="post" class="inline">
-      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="retention">
-      <label class="muted">Bewaren <input type="number" name="backup_keep" value="{{ keep }}" min="1" max="3650" style="width:80px"> dagen</label>
-      <button class="ghost" style="color:var(--acc)">Opslaan</button>
-    </form>
-  </div>
-  <p class="muted">Elke nacht om 03:00 automatisch{{ ', ook in ' ~ extra_dir if extra_dir }}. Backups ouder dan {{ keep }} dagen
-    worden opgeruimd; de nieuwste blijft altijd staan.</p>
+  <form method="post" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="backup">
+    <button>Nu backup maken</button>
+    <span class="muted">Elke nacht om 03:00 automatisch{{ ', ook in ' ~ extra_dir if extra_dir }}.</span>
+  </form>
+  <details style="margin-top:10px" {{ 'open' if not backups }}><summary><strong>Bewaren en inhoud</strong>
+    <span class="muted">· {{ keep }} dagen · apparaten: {{ 'laatste ' ~ dev_days ~ ' dagen' if dev_days else 'alles' }} · logboek: {{ 'laatste ' ~ log_days ~ ' dagen' if log_days else 'niet' }}</span></summary>
+  <form method="post" style="display:grid;gap:8px;margin-top:8px">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="retention">
+    <label>Backups bewaren <input type="number" name="backup_keep" value="{{ keep }}" min="1" max="3650" style="width:80px"> dagen
+      <span class="muted">(oudere worden opgeruimd; de nieuwste blijft altijd staan)</span></label>
+    <label>Apparaten in de backup: alleen gezien in de laatste <input type="number" name="backup_device_days" value="{{ dev_days }}" min="0" max="3650" style="width:80px"> dagen
+      <span class="muted">(0 = alles; apparaten met een eigen sleutel of eigen instellingen gaan altijd mee)</span></label>
+    <label>Logboek meenemen: laatste <input type="number" name="backup_log_days" value="{{ log_days }}" min="0" max="3650" style="width:80px"> dagen
+      <span class="muted">(0 = niet; alleen ter archief, herstellen gebruikt het niet)</span></label>
+    <div><button>Opslaan</button> <span class="muted">Geldt voor nieuwe backups.</span></div>
+  </form>
+  </details>
 
   {% macro parts() %}
     <label><input type="checkbox" name="part" value="names" checked> Namen terugzetten in Omada (alleen waar Omada de naam kwijt is)</label>
@@ -76,7 +81,7 @@
   <div class="row">
     <div class="inline">
       <span style="flex:1"><strong>{{ (b.ts * 1000)|ago }}</strong>
-        <span class="muted">· {{ (b.size / 1024)|round(1) }} kB{{ ' · ingelezen bestand' if b.upload }}</span></span>
+        <span class="muted">· {{ (b.size / 1024)|round(1) }} kB{{ ' · ' ~ b.info if b.info }}{{ ' · ingelezen bestand' if b.upload }}</span></span>
       <a href="{{ url_for('backup_download', name=b.file) }}">Downloaden</a>
       <button type="button" onclick="const d=document.getElementById('r{{ loop.index }}'); d.style.display=d.style.display==='none'?'grid':'none'">Herstellen…</button>
     </div>

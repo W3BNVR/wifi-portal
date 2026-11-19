@@ -561,9 +561,14 @@ def maintenance():
                 flash("Instellingen opgeslagen", "ok")
             elif act == "retention":
                 keep = max(1, min(3650, int(request.form.get("backup_keep") or 14)))
-                cfg_set(backup_keep=keep)
+                dev_days = max(0, min(3650, int(request.form.get("backup_device_days") or 0)))
+                log_days = max(0, min(3650, int(request.form.get("backup_log_days") or 0)))
+                cfg_set(backup_keep=keep, backup_device_days=dev_days, backup_log_days=log_days)
                 n = prune_backups()
-                flash(f"Backups worden {keep} dagen bewaard" + (f"; {n} oudere backup(s) verwijderd" if n else ""), "ok")
+                flash(f"Backups worden {keep} dagen bewaard; apparaten: "
+                      + (f"gezien in de laatste {dev_days} dagen" if dev_days else "alles")
+                      + "; logboek: " + (f"laatste {log_days} dagen" if log_days else "niet")
+                      + (f"; {n} oudere backup(s) verwijderd" if n else ""), "ok")
             elif act == "cleanup":
                 c, sid, pid, prof, *_ = A.context()
                 n = 0
@@ -670,7 +675,8 @@ def maintenance():
 
     return render_template("maintenance.html", weak=weak, thr=thr, wrong=wrong, rules_text=rules_text,
                            old_keys=old_keys, old_inv=old_inv, days=days, backups=list_backups(),
-                           keep=int(cfg_get("backup_keep", 14)), extra_dir=EXTRA_BACKUP_DIR, nets=nets_)
+                           keep=int(cfg_get("backup_keep", 14)), extra_dir=EXTRA_BACKUP_DIR, nets=nets_,
+                           dev_days=int(cfg_get("backup_device_days", 0)), log_days=int(cfg_get("backup_log_days", 0)))
 
 
 # -- backup ------------------------------------------------------------------
@@ -680,21 +686,44 @@ def list_backups():
     for f in sorted(os.listdir(BACKUP_DIR), reverse=True):
         if f.startswith("wifi-portal-") and f.endswith(".json"):
             p = os.path.join(BACKUP_DIR, f)
-            out.append({"file": f, "size": os.path.getsize(p), "ts": os.path.getmtime(p), "upload": "-upload-" in f})
+            info = ""
+            try:  # korte samenvatting van de inhoud
+                d = json.load(open(p))
+                ct = d.get("content") or {}
+                info = (f"{len(d.get('ppsk') or [])} sleutels, {len(d.get('devices') or [])} apparaten"
+                        + (f" (gezien ≤{ct['device_days']} d)" if ct.get("device_days") else "")
+                        + (f", logboek {ct['log_days']} d" if ct.get("log_days") else ""))
+            except Exception:  # noqa: BLE001
+                pass
+            out.append({"file": f, "size": os.path.getsize(p), "ts": os.path.getmtime(p), "upload": "-upload-" in f,
+                        "info": info})
     return out
 
 
 def make_backup():
     c = A.cfg()
     sid, pid = c["site"], c["profile"]
+    now = int(time.time())
+    ppsk = OMADA.ppsk(sid, pid)["entries"]
+    ov = A.overrides()
+    dev_days = int(cfg_get("backup_device_days", 0))
+    log_days = int(cfg_get("backup_log_days", 0))
+    keep_macs = {e["mac"] for e in ppsk if e["mac"]} | set(ov)  # met sleutel of eigen instellingen: altijd mee
+    devices = [d for d in db.devices().values()
+               if not dev_days or d["mac"] in keep_macs or (d.get("last_seen") or 0) >= now - dev_days * 86400]
     data = {
-        "version": 1, "ts": int(time.time()),
-        "ppsk": OMADA.ppsk(sid, pid)["entries"],
-        "state": A.state(), "overrides": A.overrides(),
+        "version": 1, "ts": now,
+        "ppsk": ppsk,
+        "state": A.state(), "overrides": ov,
         "config": {k: v for k, v in c.items() if k != "api_token"},
         "acl": _load_acl(),
-        "devices": list(db.devices().values()),
+        "devices": devices,
+        "content": {"device_days": dev_days, "log_days": log_days},
     }
+    if log_days:
+        with db._conn() as cx:
+            data["events"] = [dict(r) for r in cx.execute("SELECT * FROM events WHERE ts >= ? ORDER BY id",
+                                                          (now - log_days * 86400,))]
     os.makedirs(BACKUP_DIR, exist_ok=True)
     name = time.strftime("wifi-portal-%Y%m%d-%H%M.json")
     path = os.path.join(BACKUP_DIR, name)
