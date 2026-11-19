@@ -137,16 +137,16 @@
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5 12.6a10 10 0 0 1 14 0"/><path d="M8.5 16.3a5 5 0 0 1 7 0"/><circle cx="12" cy="19.6" r="1.2" fill="currentColor"/></svg>
     Wifi-portal</a>
   <a class="topl {{ 'on' if ep == 'dashboard' }}" href="{{ url_for('dashboard') }}">Dashboard</a>
+  <details class="dd {{ 'on' if grp == 'dev' }}"><summary>Apparaten <span class="car">▼</span></summary><div class="ddm">
+    <a href="{{ url_for('all_clients') }}" class="{{ 'cur' if ep == 'all_clients' }}"><span class="ic">📋</span><span>Alle apparaten<small>draadloos en bekabeld</small></span></a>
+    <a href="{{ url_for('dashboard') }}#waakhond"><span class="ic">🛡️</span><span>Waakhond<small>kritieke apparaten</small></span></a>
+    <a href="{{ url_for('logbook') }}" class="{{ 'cur' if ep == 'logbook' }}"><span class="ic">🕘</span><span>Logboek</span></a>
+  </div></details>
   <details class="dd {{ 'on' if grp == 'keys' }}"><summary>Sleutels <span class="car">▼</span></summary><div class="ddm">
     <a href="{{ url_for('index') }}" class="{{ 'cur' if ep == 'index' }}"><span class="ic">🔑</span><span>Overzicht<small>sleutels per VLAN</small></span></a>
     <a href="{{ url_for('index') }}#nieuw"><span class="ic">➕</span><span>Nieuw apparaat<small>sleutel + QR-code</small></span></a>
     <a href="{{ url_for('index') }}#koppelen"><span class="ic">🔗</span><span>Wacht op koppeling</span></a>
     <a href="{{ url_for('index') }}#gast"><span class="ic">🎟️</span><span>Gasttoegang<small>tijdelijke sleutels</small></span></a>
-  </div></details>
-  <details class="dd {{ 'on' if grp == 'dev' }}"><summary>Apparaten <span class="car">▼</span></summary><div class="ddm">
-    <a href="{{ url_for('all_clients') }}" class="{{ 'cur' if ep == 'all_clients' }}"><span class="ic">📋</span><span>Alle apparaten<small>draadloos en bekabeld</small></span></a>
-    <a href="{{ url_for('dashboard') }}#waakhond"><span class="ic">🛡️</span><span>Waakhond<small>kritieke apparaten</small></span></a>
-    <a href="{{ url_for('logbook') }}" class="{{ 'cur' if ep == 'logbook' }}"><span class="ic">🕘</span><span>Logboek</span></a>
   </div></details>
   <details class="dd {{ 'on' if grp == 'net' }}"><summary>Netwerk <span class="car">▼</span></summary><div class="ddm">
     <a href="{{ url_for('acl_page') }}" class="{{ 'cur' if ep == 'acl_page' }}"><span class="ic">🧱</span><span>ACL tussen VLAN's</span></a>
@@ -167,11 +167,11 @@
     <input type="text" name="q" placeholder="Zoek apparaat, MAC of IP…" aria-label="Zoeken">
   </form>
   <details class="dd right"><summary title="Thema">🎨 <span class="car">▼</span></summary><div class="ddm" style="min-width:190px">
-    <button type="button" data-t="auto"><span class="ic">🖥️</span>Volg systeem</button>
-    <button type="button" data-t="light"><span class="sw" style="background:#f3f5f8"></span>Licht</button>
-    <button type="button" data-t="dark"><span class="sw" style="background:#181d24"></span>Donker</button>
-    <button type="button" data-t="omada"><span class="sw" style="background:#14c3ad"></span>Omada</button>
-    <button type="button" data-t="nacht"><span class="sw" style="background:#a78bfa"></span>Nacht</button>
+    <button type="button" data-theme-pick="auto"><span class="ic">🖥️</span>Volg systeem</button>
+    <button type="button" data-theme-pick="light"><span class="sw" style="background:#f3f5f8"></span>Licht</button>
+    <button type="button" data-theme-pick="dark"><span class="sw" style="background:#181d24"></span>Donker</button>
+    <button type="button" data-theme-pick="omada"><span class="sw" style="background:#14c3ad"></span>Omada</button>
+    <button type="button" data-theme-pick="nacht"><span class="sw" style="background:#a78bfa"></span>Nacht</button>
   </div></details>
 </div></nav>
 {% endif %}
@@ -190,12 +190,12 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.top details.dd[open]').forEach(o => o.open = false); });
   document.querySelectorAll('.top .ddm a').forEach(a => a.addEventListener('click', () => a.closest('details').open = false));
   // thema kiezen
-  document.querySelectorAll('[data-t]').forEach(b => {
-    if (b.dataset.t === document.documentElement.dataset.theme) b.style.fontWeight = '600';
+  document.querySelectorAll('[data-theme-pick]').forEach(b => {
+    if (b.dataset.themePick === document.documentElement.dataset.theme) b.style.fontWeight = '600';
     b.addEventListener('click', () => {
-      document.documentElement.dataset.theme = b.dataset.t;
-      try { localStorage.setItem('wp-theme', b.dataset.t); } catch (e) {}
-      document.querySelectorAll('[data-t]').forEach(x => x.style.fontWeight = x === b ? '600' : '');
+      document.documentElement.dataset.theme = b.dataset.themePick;
+      try { localStorage.setItem('wp-theme', b.dataset.themePick); } catch (e) {}
+      document.querySelectorAll('[data-theme-pick]').forEach(x => x.style.fontWeight = x === b ? '600' : '');
     });
   });
   // zoekterm uit de menubalk doorgeven aan de apparatenlijst
