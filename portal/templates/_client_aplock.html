@@ -1,0 +1,109 @@
+{% set L = ap_lock_info(mac, info) %}
+<section class="card" id="aplock">
+  <h2>📡 Toegangspunt (AP)
+    {% if L.locked %}<span class="tag warn">vast op {{ L.locked_names|join(', ') }}</span>{% else %}<span class="tag">kiest zelf</span>{% endif %}</h2>
+  <div class="split" style="margin-top:4px">
+    <div>
+      <h3 class="sub">Vastzetten</h3>
+      <form method="post" action="{{ url_for('client_aplock', mac=mac) }}" style="display:grid;gap:6px">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        {% for a in L.aps %}
+        <label class="aprow"><input type="checkbox" name="aps" value="{{ a.mac }}" {{ 'checked' if a.mac in L.locked }}>
+          <span>{{ a.name }}</span>
+          {% if a.mac == L.cur %}<span class="tag ok">nu verbonden</span>{% endif %}
+          {% if not a.online %}<span class="tag warn">offline</span>{% endif %}
+          <span class="muted fs12">{{ a.model }}</span></label>
+        {% else %}<p class="muted">Geen AP's gevonden die vastzetten ondersteunen.</p>{% endfor %}
+        <div class="inline" style="margin-top:4px">
+          <button name="action" value="set" {{ 'disabled' if L.busy }}>Vastzetten op gekozen AP</button>
+          {% if L.locked %}<button name="action" value="off" class="ghost" style="color:var(--acc)" {{ 'disabled' if L.busy }}>Vrijgeven</button>{% endif %}
+        </div>
+      </form>
+      <p class="muted">Kies je meerdere AP's, dan mag het apparaat alleen daartussen wisselen. Het apparaat verbindt kort opnieuw als het nu op een ander AP zit.
+        Staat het vast op één AP en valt dat AP uit, dan is het apparaat offline tot je het vrijgeeft.</p>
+    </div>
+
+    <div>
+      <h3 class="sub">Signaal per AP <span class="muted">· laatste 8 dagen, elke 5 min gemeten</span></h3>
+      {% if L.hist %}
+      <table class="mt"><thead><tr><th>AP</th><th class="r">Gem.</th><th class="r">24 u</th><th class="r">Beste</th><th class="r">Aandeel</th></tr></thead><tbody>
+      {% for h in L.hist %}
+        <tr><td>{{ h.ap }}{% if loop.first and L.hist|length > 1 and h.n >= 3 %} <span class="tag ok">sterkst</span>{% endif %}</td>
+          <td class="r {{ 'cerr' if h.avg < -80 else ('cwarn' if h.avg < -70 else 'cok') }}">{{ h.avg }}</td>
+          <td class="r muted">{{ h.a24 if h.a24 is not none else '—' }}</td><td class="r muted">{{ h.max }}</td>
+          <td class="r muted" title="{{ h.n }} metingen">{{ h.share }}%</td></tr>
+      {% endfor %}</tbody></table>
+      <p class="muted fs12">dBm: hoger (dichter bij 0) is beter. Boven −65 is uitstekend, −65 tot −75 redelijk, onder −80 zwak.
+        De historie toont alleen AP's waar het apparaat zelf naartoe ging; de scan meet ze allemaal.</p>
+      {% else %}<p class="muted">Nog geen metingen voor dit apparaat.</p>{% endif %}
+    </div>
+  </div>
+
+  <h3 class="sub" style="margin-top:14px">Scan: welk AP heeft het beste bereik?</h3>
+  <div id="scanbox">
+  {% if L.busy %}
+    <p><span class="spin"></span> <span id="scanst">Bezig…</span></p>
+    <form method="post" action="{{ url_for('client_aplock', mac=mac) }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <button name="action" value="cancel" class="ghost" style="color:var(--err)">Scan stoppen</button></form>
+  {% else %}
+    {% if info.active and info.wireless %}
+    <form method="post" action="{{ url_for('client_aplock', mac=mac) }}" style="display:grid;gap:6px"
+          onsubmit="return confirm('Het apparaat wordt om de beurt op elk gekozen AP vastgezet en verbindt daarbij telkens kort opnieuw. Dit duurt per AP tot ongeveer {{ L.per_ap }} minuut. Doorgaan?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="inline">{% for a in L.aps if a.online %}
+        <label><input type="checkbox" name="scan_aps" value="{{ a.mac }}" checked> {{ a.name }}</label>{% endfor %}</div>
+      <label><input type="checkbox" name="apply" value="1"> Daarna automatisch vastzetten op het beste AP</label>
+      <div><button name="action" value="scan">Scan starten</button>
+        <span class="muted">Zonder vinkje komt na afloop de huidige instelling ({{ 'vast op ' ~ L.locked_names|join(', ') if L.locked else 'vrij kiezen' }}) terug.</span></div>
+    </form>
+    {% else %}<p class="muted">Scannen kan alleen als het apparaat nu draadloos verbonden is.</p>{% endif %}
+  {% endif %}
+  <div id="scanres">
+  {% if L.scan.results %}
+    <table class="mt" style="margin-top:10px"><thead><tr><th>AP</th><th class="r">Signaal</th><th class="r">SNR</th><th class="r">Snelheid</th><th>Band</th><th></th></tr></thead><tbody>
+    {% for r in L.scan.results %}
+      <tr><td>{{ r.ap }}{% if r.mac == L.scan.best %} <span class="tag ok">beste</span>{% endif %}</td>
+      {% if r.ok %}
+        <td class="r {{ 'cerr' if r.rssi < -80 else ('cwarn' if r.rssi < -70 else 'cok') }}">{{ r.rssi }} dBm</td><td class="r muted">{{ r.snr }} dB</td>
+        <td class="r muted">{{ (r.rate ~ " Mbps") if r.rate else "—" }}</td><td class="muted">{{ r.band }} · kan. {{ r.channel }}</td>
+        <td class="r">{% if not L.busy %}<form method="post" action="{{ url_for('client_aplock', mac=mac) }}" style="display:inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="ap" value="{{ r.mac }}">
+          <button name="action" value="best" class="ghost" style="padding:2px 10px;font-size:13px;color:var(--acc)">Vastzetten</button></form>{% endif %}</td>
+      {% else %}<td colspan="5" class="muted">{{ r.why }}</td>{% endif %}</tr>
+    {% endfor %}</tbody></table>
+    {% if L.scan.status == 'klaar' %}<p class="muted fs12">Scan klaar: {{ L.scan.end }}.</p>{% endif %}
+    {% if L.scan.status == 'fout' %}<p class="tag warn">Scan gestopt: {{ L.scan.error }}</p>{% endif %}
+  {% endif %}
+  </div>
+  </div>
+</section>
+<style>
+  h3.sub { font-size:14px; margin:0 0 8px; font-weight:600 }
+  .aprow { display:flex; align-items:center; gap:8px; flex-wrap:wrap }
+  .fs12 { font-size:12px; max-width:none; width:auto }
+  table.mt { width:100%; border-collapse:collapse; font-size:14px }
+  .mt th { text-align:left; font-weight:500; color:var(--mute); font-size:13px; padding:5px 8px; border-bottom:1px solid var(--line) }
+  .mt td { padding:6px 8px; border-bottom:1px solid var(--line) } .mt tr:last-child td { border-bottom:0 }
+  .mt .r { text-align:right; white-space:nowrap }
+  .cok { color:var(--ok) } .cwarn { color:var(--warn) } .cerr { color:var(--err) }
+  .spin { display:inline-block; width:12px; height:12px; border:2px solid var(--line); border-top-color:var(--acc); border-radius:50%; animation:sp 1s linear infinite; vertical-align:-1px }
+  @keyframes sp { to { transform:rotate(360deg) } }
+</style>
+{% if L.busy %}
+<script>
+(function(){
+  const st=document.getElementById('scanst');
+  async function poll(){
+    try{
+      const s=await (await fetch('{{ url_for("client_apscan", mac=mac) }}',{credentials:'same-origin'})).json();
+      if(s.status!=='bezig'){ location.hash='aplock'; location.reload(); return; }
+      st.textContent = s.step ? `AP ${s.step} van ${s.total}: ${s.now} — ${s.phase}…` : 'Starten…';
+      const done=(s.results||[]).map(r=>r.ok?`${r.ap}: ${r.rssi} dBm`:`${r.ap}: —`).join(' · ');
+      if(done) st.textContent += '  ('+done+')';
+    }catch(e){}
+    setTimeout(poll,3000);
+  }
+  poll();
+})();
+</script>
+{% endif %}

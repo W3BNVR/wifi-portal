@@ -109,6 +109,7 @@
   <datalist id="vendors">{% for v in vendors %}<option value="{{ v }}">{% endfor %}</datalist>
 </section>
 
+{% if info.wireless %}{% include "_client_aplock.html" %}{% endif %}
 {% include "_client_extra.html" %}
 
 <section class="card">

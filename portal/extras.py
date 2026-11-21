@@ -1171,3 +1171,4 @@ if os.environ.get("PORTAL_NO_SYNC") != "1":
 
 
 import dashboard  # noqa: E402,F401  - startpagina
+import aplock  # noqa: E402,F401  - AP vastzetten + AP-scan
