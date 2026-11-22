@@ -27,7 +27,8 @@ app = A.app
 OMADA = A.OMADA
 ACL_FILE = os.path.join(A.DATA, "acl.json")
 BACKUP_DIR = os.path.join(A.DATA, "backups")
-EXTRA_BACKUP_DIR = os.environ.get("BACKUP_DIR", "")  # optioneel, bv. /backup (gemount naar /DATA/Backup/wifi-portal)
+# tweede backupmap: BACKUP_DIR, of standaard /backup zodra die gemount is (bv. /DATA/Backup/wifiportaal:/backup)
+EXTRA_BACKUP_DIR = os.environ.get("BACKUP_DIR") or ("/backup" if os.path.isdir("/backup") else "")
 SNAP_DIR = os.path.join(A.DATA, "acl_snapshots")
 PREFIX = "portal: "
 
@@ -682,12 +683,31 @@ def maintenance():
 
 
 # -- backup ------------------------------------------------------------------
+def _backup_dirs():
+    return [BACKUP_DIR] + ([EXTRA_BACKUP_DIR] if EXTRA_BACKUP_DIR and os.path.isdir(EXTRA_BACKUP_DIR) else [])
+
+
+def _bpath(name):
+    """Pad van een backup: eerst /data/backups, anders de tweede backupmap (bv. na een verse installatie)."""
+    for d in _backup_dirs():
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            return p
+    return os.path.join(BACKUP_DIR, name)
+
+
 def list_backups():
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    out = []
-    for f in sorted(os.listdir(BACKUP_DIR), reverse=True):
-        if f.startswith("wifi-portal-") and f.endswith(".json"):
-            p = os.path.join(BACKUP_DIR, f)
+    out, seen = [], set()
+    files = []
+    for d in _backup_dirs():
+        files += [(f, d) for f in os.listdir(d) if f.startswith("wifi-portal-") and f.endswith(".json")]
+    for f, d in sorted(files, key=lambda x: x[0], reverse=True):
+        if f in seen:
+            continue
+        seen.add(f)
+        if True:
+            p = os.path.join(d, f)
             info = ""
             try:  # korte samenvatting van de inhoud
                 d = json.load(open(p))
@@ -698,7 +718,7 @@ def list_backups():
             except Exception:  # noqa: BLE001
                 pass
             out.append({"file": f, "size": os.path.getsize(p), "ts": os.path.getmtime(p), "upload": "-upload-" in f,
-                        "info": info})
+                        "info": info, "only_extra": d != BACKUP_DIR})
     return out
 
 
@@ -734,7 +754,13 @@ def make_backup():
     os.replace(path + ".tmp", path)
     os.chmod(path, 0o600)
     if EXTRA_BACKUP_DIR and os.path.isdir(EXTRA_BACKUP_DIR):
-        shutil.copy2(path, os.path.join(EXTRA_BACKUP_DIR, name))
+        dst = os.path.join(EXTRA_BACKUP_DIR, name)
+        shutil.copy2(path, dst)
+        try:  # eigenaar gelijk aan de map, zodat je hem via de share kunt openen
+            st = os.stat(EXTRA_BACKUP_DIR)
+            os.chown(dst, st.st_uid, st.st_gid)
+        except OSError:
+            pass
     prune_backups()
     return path
 
@@ -743,7 +769,7 @@ def prune_backups():
     """Backups ouder dan de bewaartermijn weg (de nieuwste blijft altijd staan)."""
     keep = int(cfg_get("backup_keep", 14))
     n = 0
-    for d in [BACKUP_DIR] + ([EXTRA_BACKUP_DIR] if EXTRA_BACKUP_DIR and os.path.isdir(EXTRA_BACKUP_DIR) else []):
+    for d in _backup_dirs():
         if not os.path.isdir(d):
             continue
         files = sorted((f for f in os.listdir(d) if f.startswith("wifi-portal-") and f.endswith(".json")),
@@ -771,7 +797,7 @@ def _backup_if_due():
 def backup_download(name):
     if not (name.startswith("wifi-portal-") and name.endswith(".json") and "/" not in name):
         abort(404)
-    p = os.path.join(BACKUP_DIR, name)
+    p = _bpath(name)
     if not os.path.exists(p):
         abort(404)
     return Response(open(p, "rb").read(), mimetype="application/json",
@@ -781,7 +807,7 @@ def backup_download(name):
 def restore_backup(name, parts):
     if not (name.startswith("wifi-portal-") and name.endswith(".json") and "/" not in name):
         raise OmadaError("Onbekende backup")
-    data = json.load(open(os.path.join(BACKUP_DIR, name)))
+    data = json.load(open(_bpath(name)))
     c, sid, pid, prof, *_ = A.context()
     done = []
     if "names" in parts:

@@ -22,6 +22,9 @@ services:
       - type: bind
         source: /DATA/AppData/wifi-portal/data
         target: /data
+      - type: bind
+        source: /DATA/Backup/wifiportaal
+        target: /backup
     x-casaos:
       envs:
         - container: OMADA_URL
@@ -42,6 +45,8 @@ services:
       volumes:
         - container: /data
           description: { en_us: "Settings, database, API token" }
+        - container: /backup
+          description: { en_us: "Copy of every nightly backup" }
 
 x-casaos:
   architectures: [amd64, arm64]

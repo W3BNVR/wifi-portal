@@ -12,3 +12,4 @@ services:
     env_file: .env            # zie .env.example
     volumes:
       - ./data:/data          # config.json, state.json, portal.db, secret.key
+      - ./backup:/backup      # kopie van elke backup (optioneel; weglaten = alleen in ./data/backups)

@@ -54,8 +54,10 @@
   <form method="post" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="backup">
     <button>Nu backup maken</button>
-    <span class="muted">Elke nacht om 03:00 automatisch{{ ', ook in ' ~ extra_dir if extra_dir }}.</span>
+    <span class="muted">Elke nacht om 03:00 automatisch.</span>
   </form>
+  <p class="muted" style="margin:8px 0 0">{% if extra_dir %}📁 Elke backup komt ook in <code>{{ extra_dir }}</code> (op de NAS: de map die je daar aan koppelt, bv. <code>/DATA/Backup/wifiportaal</code>).
+    {% else %}<span class="tag warn">alleen in de container</span> Backups staan nu alleen in <code>/data/backups</code>. Koppel een extra volume <code>/DATA/Backup/wifiportaal</code> → <code>/backup</code>, dan komt elke backup daar ook.{% endif %}</p>
   <details style="margin-top:10px" {{ 'open' if not backups }}><summary><strong>Bewaren en inhoud</strong>
     <span class="muted">· {{ keep }} dagen · apparaten: {{ 'laatste ' ~ dev_days ~ ' dagen' if dev_days else 'alles' }} · logboek: {{ 'laatste ' ~ log_days ~ ' dagen' if log_days else 'niet' }}</span></summary>
   <form method="post" style="display:grid;gap:8px;margin-top:8px">
