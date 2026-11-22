@@ -12,6 +12,7 @@ Wordt onderaan app.py geïmporteerd en gebruikt de helpers daaruit.
 import ipaddress
 import json
 import os
+import re
 import shutil
 import sqlite3
 import threading
@@ -27,7 +28,7 @@ app = A.app
 OMADA = A.OMADA
 ACL_FILE = os.path.join(A.DATA, "acl.json")
 BACKUP_DIR = os.path.join(A.DATA, "backups")
-# tweede backupmap: BACKUP_DIR, of standaard /backup zodra die gemount is (bv. /DATA/Backup/wifiportaal:/backup)
+# tweede backupmap: BACKUP_DIR, of standaard /backup zodra die gemount is (bv. /DATA/Backup/wifiportal:/backup)
 EXTRA_BACKUP_DIR = os.environ.get("BACKUP_DIR") or ("/backup" if os.path.isdir("/backup") else "")
 SNAP_DIR = os.path.join(A.DATA, "acl_snapshots")
 PREFIX = "portal: "
@@ -563,12 +564,15 @@ def maintenance():
                         cleanup_days=max(1, int(request.form.get("cleanup_days") or 30)))
                 flash("Instellingen opgeslagen", "ok")
             elif act == "retention":
-                keep = max(1, min(3650, int(request.form.get("backup_keep") or 14)))
+                bd = max(1, min(60, int(request.form.get("backup_days") or 7)))
+                bw = max(0, min(52, int(request.form.get("backup_weeks") or 0)))
+                bm = max(0, min(60, int(request.form.get("backup_months") or 0)))
                 dev_days = max(0, min(3650, int(request.form.get("backup_device_days") or 0)))
                 log_days = max(0, min(3650, int(request.form.get("backup_log_days") or 0)))
-                cfg_set(backup_keep=keep, backup_device_days=dev_days, backup_log_days=log_days)
+                cfg_set(backup_days=bd, backup_weeks=bw, backup_months=bm, backup_device_days=dev_days,
+                        backup_log_days=log_days)
                 n = prune_backups()
-                flash(f"Backups worden {keep} dagen bewaard; apparaten: "
+                flash(f"Bewaren: {bd} dagelijks, {bw} wekelijks, {bm} maandelijks; apparaten: "
                       + (f"gezien in de laatste {dev_days} dagen" if dev_days else "alles")
                       + "; logboek: " + (f"laatste {log_days} dagen" if log_days else "niet")
                       + (f"; {n} oudere backup(s) verwijderd" if n else ""), "ok")
@@ -678,7 +682,7 @@ def maintenance():
 
     return render_template("maintenance.html", weak=weak, thr=thr, wrong=wrong, rules_text=rules_text,
                            old_keys=old_keys, old_inv=old_inv, days=days, backups=list_backups(),
-                           keep=int(cfg_get("backup_keep", 14)), extra_dir=EXTRA_BACKUP_DIR, nets=nets_,
+                           keep=retention(), extra_dir=EXTRA_BACKUP_DIR, nets=nets_,
                            dev_days=int(cfg_get("backup_device_days", 0)), log_days=int(cfg_get("backup_log_days", 0)))
 
 
@@ -765,18 +769,66 @@ def make_backup():
     return path
 
 
+def _bts(d, f):
+    """Tijdstip van een backup: uit de naam (wifi-portal-JJJJMMDD-UUMM), anders de bestandsdatum."""
+    m = re.search(r"([0-9]{8})-([0-9]{4,6})", f)
+    if m:
+        try:
+            return time.mktime(time.strptime(m.group(1) + m.group(2)[:4], "%Y%m%d%H%M"))
+        except ValueError:
+            pass
+    return os.path.getmtime(os.path.join(d, f))
+
+
+def retention():
+    return {"days": int(cfg_get("backup_days", 7)), "weeks": int(cfg_get("backup_weeks", 4)),
+            "months": int(cfg_get("backup_months", 3))}
+
+
+def keep_set(items, now=None):
+    """Grootvader-vader-zoon: per dag de nieuwste voor N dagen, per week voor N weken, per maand voor N maanden.
+    items = [(naam, ts)]. De nieuwste blijft altijd staan."""
+    now = now or time.time()
+    r = retention()
+    keep = set()
+    items = sorted(items, key=lambda x: -x[1])
+    if items:
+        keep.add(items[0][0])
+    t = time.localtime(now)
+    today = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+    seen = set()
+    for name, ts in items:  # nieuwste eerst: de eerste per periode is de nieuwste
+        lt = time.localtime(ts)
+        if ts >= today - (r["days"] - 1) * 86400 and ("d", lt[:3]) not in seen:
+            seen.add(("d", lt[:3]))
+            keep.add(name)
+        wk = time.strftime("%G-%V", lt)
+        if ts >= today - r["weeks"] * 7 * 86400 and ("w", wk) not in seen:
+            seen.add(("w", wk))
+            keep.add(name)
+        mo = (lt.tm_year, lt.tm_mon)
+        if (t.tm_year * 12 + t.tm_mon) - (mo[0] * 12 + mo[1]) < r["months"] and ("m", mo) not in seen:
+            seen.add(("m", mo))
+            keep.add(name)
+    return keep
+
+
 def prune_backups():
-    """Backups ouder dan de bewaartermijn weg (de nieuwste blijft altijd staan)."""
-    keep = int(cfg_get("backup_keep", 14))
+    """Ruimt backups op volgens het schema (dagelijks/wekelijks/maandelijks). Geüploade backups blijven 90 dagen."""
     n = 0
     for d in _backup_dirs():
         if not os.path.isdir(d):
             continue
-        files = sorted((f for f in os.listdir(d) if f.startswith("wifi-portal-") and f.endswith(".json")),
-                       key=lambda f: os.path.getmtime(os.path.join(d, f)))
-        for f in files[:-1]:
+        files = [f for f in os.listdir(d) if f.startswith("wifi-portal-") and f.endswith(".json")]
+        auto = [(f, _bts(d, f)) for f in files if "-upload-" not in f]
+        keep = keep_set(auto)
+        for f in files:
             p = os.path.join(d, f)
-            if time.time() - os.path.getmtime(p) > keep * 86400:
+            if "-upload-" in f:
+                if time.time() - os.path.getmtime(p) > 90 * 86400:
+                    os.remove(p)
+                    n += 1
+            elif f not in keep:
                 os.remove(p)
                 n += 1
     return n

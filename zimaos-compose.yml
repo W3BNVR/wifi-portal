@@ -23,7 +23,7 @@ services:
         source: /DATA/AppData/wifi-portal/data
         target: /data
       - type: bind
-        source: /DATA/Backup/wifiportaal
+        source: /DATA/Backup/wifiportal
         target: /backup
     x-casaos:
       envs:

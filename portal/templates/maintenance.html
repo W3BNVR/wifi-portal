@@ -56,14 +56,17 @@
     <button>Nu backup maken</button>
     <span class="muted">Elke nacht om 03:00 automatisch.</span>
   </form>
-  <p class="muted" style="margin:8px 0 0">{% if extra_dir %}📁 Elke backup komt ook in <code>{{ extra_dir }}</code> (op de NAS: de map die je daar aan koppelt, bv. <code>/DATA/Backup/wifiportaal</code>).
-    {% else %}<span class="tag warn">alleen in de container</span> Backups staan nu alleen in <code>/data/backups</code>. Koppel een extra volume <code>/DATA/Backup/wifiportaal</code> → <code>/backup</code>, dan komt elke backup daar ook.{% endif %}</p>
+  <p class="muted" style="margin:8px 0 0">{% if extra_dir %}📁 Elke backup komt ook in <code>{{ extra_dir }}</code> (op de NAS: de map die je daar aan koppelt, bv. <code>/DATA/Backup/wifiportal</code>).
+    {% else %}<span class="tag warn">alleen in de container</span> Backups staan nu alleen in <code>/data/backups</code>. Koppel een extra volume <code>/DATA/Backup/wifiportal</code> → <code>/backup</code>, dan komt elke backup daar ook.{% endif %}</p>
   <details style="margin-top:10px" {{ 'open' if not backups }}><summary><strong>Bewaren en inhoud</strong>
-    <span class="muted">· {{ keep }} dagen · apparaten: {{ 'laatste ' ~ dev_days ~ ' dagen' if dev_days else 'alles' }} · logboek: {{ 'laatste ' ~ log_days ~ ' dagen' if log_days else 'niet' }}</span></summary>
+    <span class="muted">· {{ keep.days }} dagelijks, {{ keep.weeks }} wekelijks, {{ keep.months }} maandelijks · apparaten: {{ 'laatste ' ~ dev_days ~ ' dagen' if dev_days else 'alles' }} · logboek: {{ 'laatste ' ~ log_days ~ ' dagen' if log_days else 'niet' }}</span></summary>
   <form method="post" style="display:grid;gap:8px;margin-top:8px">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="retention">
-    <label>Backups bewaren <input type="number" name="backup_keep" value="{{ keep }}" min="1" max="3650" style="width:80px"> dagen
-      <span class="muted">(oudere worden opgeruimd; de nieuwste blijft altijd staan)</span></label>
+    <div>Bewaren:
+      <input type="number" name="backup_days" value="{{ keep.days }}" min="1" max="60" style="width:64px"> dagen elke dag één,
+      dan <input type="number" name="backup_weeks" value="{{ keep.weeks }}" min="0" max="52" style="width:64px"> weken één per week,
+      dan <input type="number" name="backup_months" value="{{ keep.months }}" min="0" max="60" style="width:64px"> maanden één per maand
+      <div class="muted">Per dag, week en maand blijft de nieuwste backup staan; de rest wordt opgeruimd. De allernieuwste blijft altijd staan. Geüploade backups blijven 90 dagen.</div></div>
     <label>Apparaten in de backup: alleen gezien in de laatste <input type="number" name="backup_device_days" value="{{ dev_days }}" min="0" max="3650" style="width:80px"> dagen
       <span class="muted">(0 = alles; apparaten met een eigen sleutel of eigen instellingen gaan altijd mee)</span></label>
     <label>Logboek meenemen: laatste <input type="number" name="backup_log_days" value="{{ log_days }}" min="0" max="3650" style="width:80px"> dagen
